@@ -11,6 +11,15 @@ fn own() {
     let package = m.package.as_ref().unwrap();
     assert_eq!("cargo_toml", package.name);
     assert_eq!(cargo_toml::Edition::E2018, package.edition);
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!(None, lib.crate_type);
+
+    let serialized = toml::to_string(&m).unwrap();
+    assert!(!serialized.contains("crate-type"));
+
+    let m = Manifest::from_slice(serialized.as_bytes()).unwrap();
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!(None, lib.crate_type);
 }
 
 #[test]
@@ -45,8 +54,9 @@ fn autolib() {
     assert_eq!(cargo_toml::Edition::E2015, package.edition);
     assert!(package.autobins);
     assert!(!package.autoexamples);
-    assert!(m.lib.is_some());
-    assert_eq!("auto_lib", m.lib.unwrap().name.unwrap());
+    let lib = m.lib.unwrap();
+    assert_eq!("auto_lib", lib.name.unwrap());
+    assert_eq!(Some(vec!["rlib".into()]), lib.crate_type);
     assert_eq!(0, m.bin.len());
 }
 
@@ -61,4 +71,29 @@ fn legacy() {
     let m = Manifest::from_str("name = \"foo\"\nversion=\"1\"").expect("parse bare");
     let package = m.package.as_ref().unwrap();
     assert_eq!("foo", package.name);
+}
+
+#[test]
+fn proc_macro() {
+    let manifest = br#"[project]
+    name = "foo"
+    version = "1"
+    [lib]
+    proc-macro = true
+    "#;
+    let m = Manifest::from_slice(manifest).unwrap();
+    let package = m.package.as_ref().unwrap();
+    assert_eq!("foo", package.name);
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!(None, lib.crate_type);
+    assert_eq!(true, lib.proc_macro);
+
+    let serialized = toml::to_string(&m).unwrap();
+    assert!(!serialized.contains("crate-type"));
+    assert!(serialized.contains("proc-macro"));
+
+    let m = Manifest::from_slice(serialized.as_bytes()).unwrap();
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!(None, lib.crate_type);
+    assert_eq!(true, lib.proc_macro);
 }

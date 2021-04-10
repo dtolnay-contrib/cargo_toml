@@ -44,16 +44,6 @@ pub struct Manifest<Metadata = Value> {
     pub target: TargetDepsSet,
     #[serde(default)]
     pub features: FeatureSet,
-    /// Note that due to autobins feature this is not the complete list
-    /// unless you run `complete_from_path`
-    #[serde(default)]
-    pub bin: Vec<Product>,
-    #[serde(default)]
-    pub bench: Vec<Product>,
-    #[serde(default)]
-    pub test: Vec<Product>,
-    #[serde(default)]
-    pub example: Vec<Product>,
 
     #[serde(default)]
     pub patch: PatchSet,
@@ -66,6 +56,17 @@ pub struct Manifest<Metadata = Value> {
 
     #[serde(default)]
     pub badges: Badges,
+
+    /// Note that due to autobins feature this is not the complete list
+    /// unless you run `complete_from_path`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bin: Vec<Product>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bench: Vec<Product>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub test: Vec<Product>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub example: Vec<Product>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -164,7 +165,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                     name: Some(package.name.replace("-", "_")),
                     path: Some("src/lib.rs".to_string()),
                     edition: Some(package.edition),
-                    crate_type: vec!["rlib".to_string()],
+                    crate_type: Some(vec!["rlib".to_string()]),
                     ..Product::default()
                 })
             }
@@ -302,16 +303,16 @@ pub struct Product {
     #[serde(default)]
     pub edition: Option<Edition>,
 
+    /// The available options are "dylib", "rlib", "staticlib", "cdylib", and "proc-macro".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub crate_type: Option<Vec<String>>,
+
     /// The required-features field specifies which features the product needs in order to be built.
     /// If any of the required features are not selected, the product will be skipped.
     /// This is only relevant for the `[[bin]]`, `[[bench]]`, `[[test]]`, and `[[example]]` sections,
     /// it has no effect on `[lib]`.
     #[serde(default)]
     pub required_features: Vec<String>,
-
-    /// The available options are "dylib", "rlib", "staticlib", "cdylib", and "proc-macro".
-    #[serde(default)]
-    pub crate_type: Vec<String>,
 }
 
 impl Default for Product {
@@ -327,7 +328,7 @@ impl Default for Product {
             plugin: false,
             proc_macro: false,
             required_features: Vec::new(),
-            crate_type: Vec::new(),
+            crate_type: None,
             edition: Some(Edition::default()),
         }
     }

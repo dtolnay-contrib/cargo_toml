@@ -12,7 +12,6 @@ extern crate serde_derive;
 use serde::Deserialize;
 use serde::Deserializer;
 use std::collections::BTreeMap;
-
 pub use toml::Value;
 
 pub type DepsSet = BTreeMap<String, Dependency>;
@@ -236,7 +235,9 @@ pub struct Profiles {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Profile {
+    /// num or z, s
     pub opt_level: Option<Value>,
+    /// 0,1,2 or bool
     pub debug: Option<Value>,
     pub rpath: Option<bool>,
     pub lto: Option<Value>,
@@ -245,6 +246,12 @@ pub struct Profile {
     pub panic: Option<String>,
     pub incremental: Option<bool>,
     pub overflow_checks: Option<bool>,
+
+    /// profile overrides
+    #[serde(default)]
+    pub package: BTreeMap<String, Value>,
+    /// profile overrides
+    pub build_override: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -427,6 +434,7 @@ pub struct DependencyDetail {
 /// You can replace `Metadata` type with your own
 /// to parse into something more useful than a generic toml `Value`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Package<Metadata = Value> {
     /// Careful: some names are uppercase
     pub name: String,
@@ -437,7 +445,7 @@ pub struct Package<Metadata = Value> {
     pub build: Option<Value>,
     pub workspace: Option<String>,
     #[serde(default)]
-    /// e.g. ["Author <e@mail>", "etc"]
+    /// e.g. ["Author <e@mail>", "etc"] Deprecated.
     pub authors: Vec<String>,
     pub links: Option<String>,
     /// A short blurb about the package. This is not rendered in any format when
@@ -446,6 +454,7 @@ pub struct Package<Metadata = Value> {
     pub homepage: Option<String>,
     pub documentation: Option<String>,
     /// This points to a file under the package root (relative to this `Cargo.toml`).
+    /// implied if README.md, README.txt or README exists.
     pub readme: Option<String>,
     #[serde(default)]
     pub keywords: Vec<String>,
@@ -455,10 +464,12 @@ pub struct Package<Metadata = Value> {
     pub categories: Vec<String>,
     /// e.g. "MIT"
     pub license: Option<String>,
-    #[serde(rename = "license-file")]
     pub license_file: Option<String>,
     pub repository: Option<String>,
     pub metadata: Option<Metadata>,
+
+    /// The default binary to run by cargo run.
+    pub default_run: Option<String>,
 
     #[serde(default = "default_true")]
     pub autobins: bool,
@@ -470,6 +481,9 @@ pub struct Package<Metadata = Value> {
     pub autobenches: bool,
     #[serde(default)]
     pub publish: Publish,
+
+    /// "2" is the only useful value
+    pub resolver: Option<Resolver>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -522,6 +536,7 @@ fn ok_or_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
 }
 
+/// Deprecated
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Badges {
@@ -601,10 +616,26 @@ pub enum Edition {
     E2015,
     #[serde(rename = "2018")]
     E2018,
+    #[serde(rename = "2021")]
+    E2021,
 }
 
 impl Default for Edition {
     fn default() -> Self {
-        Edition::E2015
+        Self::E2015
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+pub enum Resolver {
+    #[serde(rename = "1")]
+    V1,
+    #[serde(rename = "2")]
+    V2,
+}
+
+impl Default for Resolver {
+    fn default() -> Self {
+        Self::V1
     }
 }

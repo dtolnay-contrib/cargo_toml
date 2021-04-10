@@ -3,6 +3,14 @@ name = "auto-bin"
 version = "0.1.0"
 publish = false
 edition = "2018"
+resolver = "2"
 
 [badges]
 travis-ci = { repository = "…" }
+
+[profile.dev.build-override]
+opt-level = 0
+codegen-units = 256
+
+[profile.test.package."*"]
+debug = 0

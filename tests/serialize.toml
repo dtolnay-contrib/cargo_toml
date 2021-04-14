@@ -1,0 +1,23 @@
+[package]
+name = "test-valueaftertable_err"
+version = "0.1.0"
+authors = ["Mark Hakansson <mark.hakansson@live.se>"]
+edition = "2018"
+
+[dependencies]
+cortex-m-rtic = "0.6.0-alpha.1"
+
+[dependencies.cortex-m]
+version = "0.7.1"
+
+[dependencies.cortex-m-rt]
+version = "0.6.11"
+
+[dependencies.stm32f4xx-hal]
+version = "0.8.3"
+features = ["rt", "stm32f401"] 
+
+[dependencies.vcell]
+version = "0.1.3"
+optional = true
+

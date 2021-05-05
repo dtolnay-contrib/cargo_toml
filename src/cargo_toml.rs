@@ -33,18 +33,18 @@ pub use crate::error::Error;
 pub struct Manifest<Metadata = Value> {
     pub package: Option<Package<Metadata>>,
     pub workspace: Option<Workspace>,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub dependencies: DepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub dev_dependencies: DepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub build_dependencies: DepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub target: TargetDepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub features: FeatureSet,
 
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub patch: PatchSet,
 
     /// Note that due to autolibs feature this is not the complete list
@@ -145,7 +145,9 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// This scans the disk to make the data in the manifest as complete as possible.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
-        let manifest_dir = path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
+        let manifest_dir = path
+            .parent()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir))
     }
 
@@ -154,7 +156,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// You can provide any implementation of directory scan, which doesn't have to
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
-    pub fn complete_from_abstract_filesystem(&mut self, fs: impl AbstractFilesystem) -> Result<(), Error> {
+    pub fn complete_from_abstract_filesystem(
+        &mut self,
+        fs: impl AbstractFilesystem,
+    ) -> Result<(), Error> {
         if let Some(ref package) = self.package {
             let src = fs.file_names_in("src")?;
             if let Some(ref mut lib) = self.lib {
@@ -248,7 +253,7 @@ pub struct Profile {
     pub overflow_checks: Option<bool>,
 
     /// profile overrides
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub package: BTreeMap<String, Value>,
     /// profile overrides
     pub build_override: Option<Value>,
@@ -344,11 +349,11 @@ impl Default for Product {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub dependencies: DepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub dev_dependencies: DepsSet,
-    #[serde(default)]
+    #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub build_dependencies: DepsSet,
 }
 
@@ -396,7 +401,8 @@ impl Dependency {
 
     // Git URL of this dependency, if any
     pub fn git(&self) -> Option<&str> {
-        self.detail().and_then(|d| d.git.as_ref().map(|p| p.as_str()))
+        self.detail()
+            .and_then(|d| d.git.as_ref().map(|p| p.as_str()))
     }
 
     // `true` if it's an usual crates.io dependency,
@@ -406,7 +412,13 @@ impl Dependency {
             Dependency::Simple(_) => true,
             Dependency::Detailed(ref d) => {
                 // TODO: allow registry to be set to crates.io explicitly?
-                d.path.is_none() && d.registry.is_none() && d.registry_index.is_none() && d.git.is_none() && d.tag.is_none() && d.branch.is_none() && d.rev.is_none()
+                d.path.is_none()
+                    && d.registry.is_none()
+                    && d.registry_index.is_none()
+                    && d.git.is_none()
+                    && d.tag.is_none()
+                    && d.branch.is_none()
+                    && d.rev.is_none()
             }
         }
     }
@@ -530,8 +542,9 @@ fn default_master() -> String {
 }
 
 fn ok_or_default<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-    where T: Deserialize<'de> + Default,
-          D: Deserializer<'de>
+where
+    T: Deserialize<'de> + Default,
+    D: Deserializer<'de>,
 {
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
 }

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Kornel <kornel@geekhood.net>"]
 autoexamples = false
 publish = false
+readme = "SOMETHING"
 
 [lib]
 

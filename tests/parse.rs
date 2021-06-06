@@ -60,6 +60,7 @@ fn autolib() {
     let m = Manifest::from_path("tests/autolib/Cargo.toml").expect("load autolib");
     let package = m.package.as_ref().unwrap();
     assert_eq!("auto-lib", package.name);
+    assert_eq!("SOMETHING", package.readme.as_ref().unwrap());
     assert_eq!(false, package.publish);
     assert_eq!(cargo_toml::Edition::E2015, package.edition);
     assert!(package.autobins);

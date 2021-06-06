@@ -2,6 +2,7 @@
 //! to load and inspect `Cargo.toml` metadata.
 //!
 //! See `Manifest::from_slice`.
+
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -470,6 +471,7 @@ pub struct Package<Metadata = Value> {
     pub documentation: Option<String>,
     /// This points to a file under the package root (relative to this `Cargo.toml`).
     /// implied if README.md, README.txt or README exists.
+    #[serde(default, deserialize_with = "readme_parser")]
     pub readme: Option<String>,
     #[serde(default)]
     pub keywords: Vec<String>,
@@ -654,4 +656,41 @@ impl Default for Resolver {
     fn default() -> Self {
         Self::V1
     }
+}
+
+fn readme_parser<'de, D>(deser: D) -> Result<Option<String>, D::Error> where D: Deserializer<'de> {
+    use serde::de::Visitor;
+    use serde::de;
+    use std::fmt;
+
+    struct ReadmeVisitor;
+    impl<'de> Visitor<'de> for ReadmeVisitor {
+        type Value = Option<String>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(formatter, "readme property must be a stirng or bool")
+        }
+
+        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
+            Ok(None)
+        }
+
+        fn visit_bool<E: de::Error>(self, _: bool) -> Result<Self::Value, E> {
+            Ok(None) // unfortunately the return type can't capture the difference between none and false
+        }
+
+        fn visit_str<E: de::Error>(self, val: &str) -> Result<Self::Value, E> {
+            Ok(Some(val.to_string()))
+        }
+
+        fn visit_string<E: de::Error>(self, val: String) -> Result<Self::Value, E> {
+            Ok(Some(val))
+        }
+    }
+
+    deser.deserialize_any(ReadmeVisitor)
 }

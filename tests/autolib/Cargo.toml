@@ -5,6 +5,8 @@ authors = ["Kornel <kornel@geekhood.net>"]
 autoexamples = false
 publish = false
 
+[lib]
+
 [dependencies]
 
 [badges]

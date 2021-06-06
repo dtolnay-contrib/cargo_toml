@@ -164,7 +164,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             let src = fs.file_names_in("src")?;
             if let Some(ref mut lib) = self.lib {
                 lib.required_features.clear(); // not applicable
-            } else if src.contains("lib.rs") {
+            }
+
+            let has_path = self.lib.as_ref().map_or(false, |l| l.path.is_some());
+            if !has_path && src.contains("lib.rs") {
                 self.lib = Some(Product {
                     name: Some(package.name.replace("-", "_")),
                     path: Some("src/lib.rs".to_string()),

@@ -6,7 +6,7 @@
 use std::fs;
 use std::io;
 use std::path::Path;
-use toml;
+
 
 #[macro_use]
 extern crate serde_derive;
@@ -379,7 +379,7 @@ impl Dependency {
     pub fn req(&self) -> &str {
         match *self {
             Dependency::Simple(ref v) => v,
-            Dependency::Detailed(ref d) => d.version.as_ref().map(|s| s.as_str()).unwrap_or("*"),
+            Dependency::Detailed(ref d) => d.version.as_deref().unwrap_or("*"),
         }
     }
 
@@ -399,14 +399,14 @@ impl Dependency {
     pub fn package(&self) -> Option<&str> {
         match *self {
             Dependency::Simple(_) => None,
-            Dependency::Detailed(ref d) => d.package.as_ref().map(|p| p.as_str()),
+            Dependency::Detailed(ref d) => d.package.as_deref(),
         }
     }
 
     // Git URL of this dependency, if any
     pub fn git(&self) -> Option<&str> {
         self.detail()
-            .and_then(|d| d.git.as_ref().map(|p| p.as_str()))
+            .and_then(|d| d.git.as_deref())
     }
 
     // `true` if it's an usual crates.io dependency,
@@ -520,7 +520,7 @@ impl PartialEq<Publish> for bool {
     fn eq(&self, p: &Publish) -> bool {
         match *p {
             Publish::Flag(flag) => flag == *self,
-            Publish::Registry(ref reg) => !reg.is_empty() == *self,
+            Publish::Registry(ref reg) => reg.is_empty() != *self,
         }
     }
 }

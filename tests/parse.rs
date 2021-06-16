@@ -1,14 +1,12 @@
 use cargo_toml::Manifest;
 use std::fs::read;
 
-
 #[test]
 fn own() {
     let m = Manifest::from_slice(&read("Cargo.toml").unwrap()).unwrap();
     let package = m.package.as_ref().unwrap();
     assert_eq!("cargo_toml", package.name);
-    let m =
-        Manifest::<toml::Value>::from_slice_with_metadata(&read("Cargo.toml").unwrap()).unwrap();
+    let m = Manifest::<toml::Value>::from_slice_with_metadata(&read("Cargo.toml").unwrap()).unwrap();
     let package = m.package.as_ref().unwrap();
     assert_eq!("cargo_toml", package.name);
     assert_eq!(cargo_toml::Edition::E2018, package.edition);

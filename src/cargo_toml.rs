@@ -7,7 +7,6 @@ use std::fs;
 use std::io;
 use std::path::Path;
 
-
 #[macro_use]
 extern crate serde_derive;
 use serde::Deserialize;
@@ -658,9 +657,12 @@ impl Default for Resolver {
     }
 }
 
-fn readme_parser<'de, D>(deser: D) -> Result<Option<String>, D::Error> where D: Deserializer<'de> {
-    use serde::de::Visitor;
+fn readme_parser<'de, D>(deser: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
     use serde::de;
+    use serde::de::Visitor;
     use std::fmt;
 
     struct ReadmeVisitor;

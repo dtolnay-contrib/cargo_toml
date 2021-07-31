@@ -70,6 +70,19 @@ fn autolib() {
 }
 
 #[test]
+fn autoworkspace() {
+    let m = Manifest::from_path("tests/autoworkspace/Cargo.toml").expect("load autoworkspace");
+    let workspace = m.workspace.as_ref().unwrap();
+    assert_eq!(workspace.members, vec!["autolib"]);
+    assert_eq!(workspace.exclude, vec!["nothing"]);
+    assert!(workspace.metadata.is_some());
+    if let Some(metadata) = &workspace.metadata {
+        assert!(metadata.is_table());
+        assert_eq!(metadata.get("example_metadata"), Some(&toml::Value::String("expected".into())));
+    }
+}
+
+#[test]
 fn legacy() {
     let m = Manifest::from_slice(
         br#"[project]

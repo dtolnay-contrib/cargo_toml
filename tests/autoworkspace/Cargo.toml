@@ -1,0 +1,15 @@
+[package]
+name = "auto-workspace"
+version = "0.1.0"
+publish = false
+edition = "2018"
+resolver = "2"
+
+[[bin]]
+
+[workspace]
+members = ["autolib"]
+exclude = ["nothing"]
+
+[workspace.metadata]
+example_metadata = "expected"

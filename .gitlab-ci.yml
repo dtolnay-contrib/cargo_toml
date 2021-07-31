@@ -1,0 +1,19 @@
+.cargo_test_template:
+  stage: test
+  script:
+    - cargo test --verbose
+
+stages:
+  - test
+
+stable:cargo:
+  extends: .cargo_test_template
+  image: rustdocker/rust:stable
+
+beta:cargo:
+  extends: .cargo_test_template
+  image: rustdocker/rust:beta
+
+nightly:cargo:
+  extends: .cargo_test_template
+  image: rustdocker/rust:nightly

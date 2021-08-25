@@ -32,7 +32,7 @@ pub use crate::error::Error;
 #[serde(rename_all = "kebab-case")]
 pub struct Manifest<Metadata = Value> {
     pub package: Option<Package<Metadata>>,
-    pub workspace: Option<Workspace>,
+    pub workspace: Option<Workspace<Metadata>>,
     #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub dependencies: DepsSet,
     #[serde(default, serialize_with = "toml::ser::tables_last")]
@@ -70,7 +70,7 @@ pub struct Manifest<Metadata = Value> {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct Workspace {
+pub struct Workspace<Metadata = Value> {
     #[serde(default)]
     pub members: Vec<String>,
 
@@ -79,6 +79,8 @@ pub struct Workspace {
 
     #[serde(default)]
     pub exclude: Vec<String>,
+
+    pub metadata: Option<Metadata>,
 }
 
 fn default_true() -> bool {

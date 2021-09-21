@@ -33,27 +33,51 @@ pub use crate::error::Error;
 pub struct Manifest<Metadata = Value> {
     pub package: Option<Package<Metadata>>,
     pub workspace: Option<Workspace<Metadata>>,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "DepsSet::is_empty"
+    )]
     pub dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "DepsSet::is_empty"
+    )]
     pub dev_dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "DepsSet::is_empty"
+    )]
     pub build_dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "TargetDepsSet::is_empty"
+    )]
     pub target: TargetDepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "FeatureSet::is_empty"
+    )]
     pub features: FeatureSet,
 
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "PatchSet::is_empty"
+    )]
     pub patch: PatchSet,
 
     /// Note that due to autolibs feature this is not the complete list
     /// unless you run `complete_from_path`
     pub lib: Option<Product>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Profiles::should_skip_serializing")]
     pub profile: Profiles,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Badges::should_skip_serializing")]
     pub badges: Badges,
 
     /// Note that due to autobins feature this is not the complete list
@@ -74,10 +98,10 @@ pub struct Workspace<Metadata = Value> {
     #[serde(default)]
     pub members: Vec<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub default_members: Vec<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
 
     pub metadata: Option<Metadata>,
@@ -240,6 +264,17 @@ pub struct Profiles {
     pub test: Option<Profile>,
     pub bench: Option<Profile>,
     pub doc: Option<Profile>,
+}
+
+impl Profiles {
+    /// Determine whether or not a Profiles struct should be serialized
+    fn should_skip_serializing(&self) -> bool {
+        self.release.is_none()
+            && self.dev.is_none()
+            && self.test.is_none()
+            && self.bench.is_none()
+            && self.doc.is_none()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -406,8 +441,7 @@ impl Dependency {
 
     // Git URL of this dependency, if any
     pub fn git(&self) -> Option<&str> {
-        self.detail()
-            .and_then(|d| d.git.as_deref())
+        self.detail().and_then(|d| d.git.as_deref())
     }
 
     // `true` if it's an usual crates.io dependency,
@@ -604,6 +638,21 @@ pub struct Badges {
     /// `deprecated`, and the default `none`, which displays no badge on crates.io.
     #[serde(default, deserialize_with = "ok_or_default")]
     pub maintenance: Maintenance,
+}
+
+impl Badges {
+    /// Determine whether or not a Profiles struct should be serialized
+    fn should_skip_serializing(&self) -> bool {
+        self.appveyor.is_none()
+            && self.circle_ci.is_none()
+            && self.gitlab.is_none()
+            && self.travis_ci.is_none()
+            && self.codecov.is_none()
+            && self.coveralls.is_none()
+            && self.is_it_maintained_issue_resolution.is_none()
+            && self.is_it_maintained_open_issues.is_none()
+            && matches!(self.maintenance.status, MaintenanceStatus::None)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Serialize, Deserialize)]

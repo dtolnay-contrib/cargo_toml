@@ -129,3 +129,25 @@ fn serialize() {
     let serialized = toml::to_string(&m);
     assert!(serialized.is_ok());
 }
+
+#[test]
+fn serialize_virtual_manifest() {
+    let manifest = br#"[workspace]
+    members = [
+        "autobin",
+        "autolib",
+    ]
+    "#;
+    let m = Manifest::from_slice(manifest).unwrap();
+    let serialized = toml::to_string(&m).unwrap();
+    assert_eq!(
+        serialized,
+        [
+            "[workspace]",
+            "members = [\"autobin\", \"autolib\"]",
+            "",
+        ]
+        .join("\n"),
+    );
+    assert!(Manifest::from_str(&serialized).is_ok());
+}

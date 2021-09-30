@@ -519,7 +519,6 @@ pub struct Package<Metadata = Value> {
     pub license: Option<String>,
     pub license_file: Option<String>,
     pub repository: Option<String>,
-    pub metadata: Option<Metadata>,
 
     /// The default binary to run by cargo run.
     pub default_run: Option<String>,
@@ -537,6 +536,8 @@ pub struct Package<Metadata = Value> {
 
     /// "2" is the only useful value
     pub resolver: Option<Resolver>,
+
+    pub metadata: Option<Metadata>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]

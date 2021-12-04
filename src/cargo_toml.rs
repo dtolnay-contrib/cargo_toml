@@ -112,6 +112,10 @@ fn default_true() -> bool {
     true
 }
 
+fn is_true(val: &bool) -> bool {
+    *val
+}
+
 impl Manifest<Value> {
     /// Parse contents of a `Cargo.toml` file already loaded as a byte slice.
     ///
@@ -316,21 +320,21 @@ pub struct Product {
     pub name: Option<String>,
 
     /// A flag for enabling unit tests for this product. This is used by `cargo test`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub test: bool,
 
     /// A flag for enabling documentation tests for this product. This is only relevant
     /// for libraries, it has no effect on other sections. This is used by
     /// `cargo test`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub doctest: bool,
 
     /// A flag for enabling benchmarks for this product. This is used by `cargo bench`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub bench: bool,
 
     /// A flag for enabling documentation of this product. This is used by `cargo doc`.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub doc: bool,
 
     /// If the product is meant to be a compiler plugin, this field must be set to true
@@ -346,7 +350,7 @@ pub struct Product {
     /// If set to false, `cargo test` will omit the `--test` flag to rustc, which
     /// stops it from generating a test harness. This is useful when the binary being
     /// built manages the test runner itself.
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub harness: bool,
 
     /// If set then a product can be configured to use a different edition than the
@@ -498,6 +502,7 @@ pub struct Package<Metadata = Value> {
     pub workspace: Option<String>,
     #[serde(default)]
     /// e.g. ["Author <e@mail>", "etc"] Deprecated.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub authors: Vec<String>,
     pub links: Option<String>,
     /// A short blurb about the package. This is not rendered in any format when
@@ -509,9 +514,9 @@ pub struct Package<Metadata = Value> {
     /// implied if README.md, README.txt or README exists.
     #[serde(default, deserialize_with = "readme_parser")]
     pub readme: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     /// This is a list of up to five categories where this crate would fit.
     /// e.g. ["command-line-utilities", "development-tools::cargo-plugins"]
     pub categories: Vec<String>,
@@ -523,15 +528,15 @@ pub struct Package<Metadata = Value> {
     /// The default binary to run by cargo run.
     pub default_run: Option<String>,
 
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobins: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autoexamples: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autotests: bool,
-    #[serde(default = "default_true")]
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobenches: bool,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Publish::is_default")]
     pub publish: Publish,
 
     /// "2" is the only useful value
@@ -545,6 +550,12 @@ pub struct Package<Metadata = Value> {
 pub enum Publish {
     Flag(bool),
     Registry(Vec<String>),
+}
+
+impl Publish {
+    fn is_default(&self) -> bool {
+        matches!(self, Publish::Flag(flag) if *flag)
+    }
 }
 
 impl Default for Publish {

@@ -3,7 +3,7 @@
 //!
 //! See `Manifest::from_slice`.
 
-use std::collections::HashSet;
+
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -192,7 +192,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         fs: impl AbstractFilesystem,
     ) -> Result<(), Error> {
         if let Some(ref package) = self.package {
-            let src = fs.file_names_in("src").unwrap_or(HashSet::new());
+            let src = fs.file_names_in("src").unwrap_or_default();
             if let Some(ref mut lib) = self.lib {
                 lib.required_features.clear(); // not applicable
             }

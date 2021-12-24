@@ -121,6 +121,19 @@ fn proc_macro() {
     let lib = m.lib.as_ref().unwrap();
     assert_eq!(None, lib.crate_type);
     assert_eq!(true, lib.proc_macro);
+
+    // The "proc-macro" field can also be spelled "proc_macro"
+    let manifest = br#"[project]
+    name = "foo"
+    version = "1"
+    [lib]
+    proc_macro = true
+    "#;
+    let m = Manifest::from_slice(manifest).unwrap();
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!(None, lib.crate_type);
+    assert_eq!(true, lib.proc_macro);
+
 }
 
 #[test]

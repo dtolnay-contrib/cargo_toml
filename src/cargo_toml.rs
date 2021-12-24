@@ -344,7 +344,7 @@ pub struct Product {
 
     /// If the product is meant to be a "macros 1.1" procedural macro, this field must
     /// be set to true.
-    #[serde(default)]
+    #[serde(default, alias = "proc_macro", alias = "proc-macro")]
     pub proc_macro: bool,
 
     /// If set to false, `cargo test` will omit the `--test` flag to rustc, which

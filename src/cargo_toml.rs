@@ -199,12 +199,13 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
             let has_path = self.lib.as_ref().map_or(false, |l| l.path.is_some());
             if !has_path && src.contains("lib.rs") {
+                let old_lib = self.lib.take().unwrap_or_default();
                 self.lib = Some(Product {
                     name: Some(package.name.replace("-", "_")),
                     path: Some("src/lib.rs".to_string()),
                     edition: Some(package.edition),
                     crate_type: Some(vec!["rlib".to_string()]),
-                    ..Product::default()
+                    ..old_lib
                 })
             }
 

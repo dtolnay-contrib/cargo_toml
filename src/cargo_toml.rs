@@ -297,6 +297,7 @@ pub struct Profile {
     pub panic: Option<String>,
     pub incremental: Option<bool>,
     pub overflow_checks: Option<bool>,
+    pub strip: Option<bool>,
 
     /// profile overrides
     #[serde(default, serialize_with = "toml::ser::tables_last")]
@@ -492,11 +493,15 @@ pub struct DependencyDetail {
 /// to parse into something more useful than a generic toml `Value`
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub struct Package<Metadata = Value> {
     /// Careful: some names are uppercase
     pub name: String,
     #[serde(default)]
     pub edition: Edition,
+    /// MSRV 1.x (beware: does not require semver formatting)
+    #[serde(default)]
+    pub rust_version: Option<String>,
     /// e.g. "1.9.0"
     pub version: String,
     pub build: Option<Value>,

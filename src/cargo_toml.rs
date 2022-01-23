@@ -195,7 +195,12 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         fs: impl AbstractFilesystem,
     ) -> Result<(), Error> {
         if let Some(ref package) = self.package {
-            let src = fs.file_names_in("src").unwrap_or_default();
+            let src = match fs.file_names_in("src") {
+                Ok(src) => src,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => Default::default(),
+                Err(err) => return Err(err.into()),
+            };
+
             if let Some(ref mut lib) = self.lib {
                 lib.required_features.clear(); // not applicable
             }

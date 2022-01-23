@@ -80,6 +80,7 @@ fn autoworkspace() {
         assert!(metadata.is_table());
         assert_eq!(metadata.get("example_metadata"), Some(&toml::Value::String("expected".into())));
     }
+    assert_eq!(workspace.resolver, Some(cargo_toml::Resolver::V2));
 }
 
 #[test]

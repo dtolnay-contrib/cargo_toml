@@ -3,7 +3,7 @@
 //!
 //! See `Manifest::from_slice`.
 
-
+use std::fmt::Display;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -106,6 +106,9 @@ pub struct Workspace<Metadata = Value> {
     pub exclude: Vec<String>,
 
     pub metadata: Option<Metadata>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolver: Option<Resolver>,
 }
 
 fn default_true() -> bool {
@@ -787,6 +790,19 @@ pub enum Resolver {
     V1,
     #[serde(rename = "2")]
     V2,
+}
+
+impl Display for Resolver {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Resolver::V1 => "1",
+                Resolver::V2 => "2",
+            }
+        )
+    }
 }
 
 impl Default for Resolver {

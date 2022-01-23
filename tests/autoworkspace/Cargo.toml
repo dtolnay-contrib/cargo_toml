@@ -10,6 +10,7 @@ resolver = "2"
 [workspace]
 members = ["autolib"]
 exclude = ["nothing"]
+resolver = "2"
 
 [workspace.metadata]
 example_metadata = "expected"

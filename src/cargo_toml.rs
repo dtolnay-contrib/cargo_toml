@@ -238,6 +238,19 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 self.bench = self.autoset("benches", &fs);
             }
         }
+        if let Some(ref mut package) = self.package {
+            if matches!(package.build, None | Some(OptionalFile::Flag(true))) {
+                if fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
+                    package.build = Some(OptionalFile::Path("build.rs".into()));
+                }
+            }
+            if matches!(package.readme, OptionalFile::Flag(true)) {
+                let files = fs.file_names_in(".").ok();
+                if let Some(name) = files.as_ref().and_then(|dir| dir.get("README.md").or_else(|| dir.get("README.txt")).or_else(|| dir.get("README"))) {
+                    package.build = Some(OptionalFile::Path((**name).to_owned()));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -518,7 +531,8 @@ pub struct Package<Metadata = Value> {
     pub rust_version: Option<String>,
     /// e.g. "1.9.0"
     pub version: String,
-    pub build: Option<Value>,
+    #[serde(default)]
+    pub build: Option<OptionalFile>,
     pub workspace: Option<String>,
     #[serde(default)]
     /// e.g. ["Author <e@mail>", "etc"] Deprecated.
@@ -532,8 +546,8 @@ pub struct Package<Metadata = Value> {
     pub documentation: Option<String>,
     /// This points to a file under the package root (relative to this `Cargo.toml`).
     /// implied if README.md, README.txt or README exists.
-    #[serde(default, deserialize_with = "readme_parser")]
-    pub readme: Option<String>,
+    #[serde(default, skip_serializing_if = "OptionalFile::is_default")]
+    pub readme: OptionalFile,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -563,6 +577,43 @@ pub struct Package<Metadata = Value> {
     pub resolver: Option<Resolver>,
 
     pub metadata: Option<Metadata>,
+}
+
+/// Readme of build.rs path
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OptionalFile {
+    /// Opt-in to default, or explicit opt-out
+    Flag(bool),
+    /// Explicit path
+    Path(String),
+}
+
+impl Default for OptionalFile {
+    #[inline]
+    fn default() -> Self {
+        Self::Flag(true)
+    }
+}
+
+impl OptionalFile {
+    #[inline]
+    fn is_default(&self) -> bool {
+        matches!(self, Self::Flag(flag) if *flag)
+    }
+
+    #[inline]
+    pub fn as_ref(&self) -> Option<&str> {
+        match self {
+            Self::Path(p) => Some(p),
+            _ => None,
+        }
+    }
+
+    #[inline]
+    pub fn is_some(&self) -> bool {
+        matches!(self, Self::Flag(true) | Self::Path(_))
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -742,44 +793,4 @@ impl Default for Resolver {
     fn default() -> Self {
         Self::V1
     }
-}
-
-fn readme_parser<'de, D>(deser: D) -> Result<Option<String>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    use serde::de;
-    use serde::de::Visitor;
-    use std::fmt;
-
-    struct ReadmeVisitor;
-    impl<'de> Visitor<'de> for ReadmeVisitor {
-        type Value = Option<String>;
-
-        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            write!(formatter, "readme property must be a stirng or bool")
-        }
-
-        fn visit_none<E: de::Error>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_unit<E: de::Error>(self) -> Result<Self::Value, E> {
-            Ok(None)
-        }
-
-        fn visit_bool<E: de::Error>(self, _: bool) -> Result<Self::Value, E> {
-            Ok(None) // unfortunately the return type can't capture the difference between none and false
-        }
-
-        fn visit_str<E: de::Error>(self, val: &str) -> Result<Self::Value, E> {
-            Ok(Some(val.to_string()))
-        }
-
-        fn visit_string<E: de::Error>(self, val: String) -> Result<Self::Value, E> {
-            Ok(Some(val))
-        }
-    }
-
-    deser.deserialize_any(ReadmeVisitor)
 }

@@ -120,6 +120,7 @@ impl Manifest<Value> {
     /// Parse contents of a `Cargo.toml` file already loaded as a byte slice.
     ///
     /// It does not call `complete_from_path`, so may be missing implicit data.
+    #[inline(always)]
     pub fn from_slice(cargo_toml_content: &[u8]) -> Result<Self, Error> {
         Self::from_slice_with_metadata(cargo_toml_content)
     }
@@ -127,6 +128,7 @@ impl Manifest<Value> {
     /// Parse contents from a `Cargo.toml` file on disk.
     ///
     /// Calls `complete_from_path`.
+    #[inline]
     pub fn from_path(cargo_toml_path: impl AsRef<Path>) -> Result<Self, Error> {
         Self::from_path_with_metadata(cargo_toml_path)
     }
@@ -136,6 +138,7 @@ impl Manifest<Value> {
     /// Note: this is **not** a file name, but file's content. See `from_path`.
     ///
     /// It does not call `complete_from_path`, so may be missing implicit data.
+    #[inline(always)]
     pub fn from_str(cargo_toml_content: &str) -> Result<Self, Error> {
         Self::from_slice_with_metadata(cargo_toml_content.as_bytes())
     }
@@ -412,6 +415,7 @@ pub enum Dependency {
 }
 
 impl Dependency {
+    #[inline]
     pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
             Dependency::Simple(_) => None,
@@ -419,6 +423,7 @@ impl Dependency {
         }
     }
 
+    #[inline]
     pub fn req(&self) -> &str {
         match *self {
             Dependency::Simple(ref v) => v,
@@ -426,6 +431,7 @@ impl Dependency {
         }
     }
 
+    #[inline]
     pub fn req_features(&self) -> &[String] {
         match *self {
             Dependency::Simple(_) => &[],
@@ -433,12 +439,14 @@ impl Dependency {
         }
     }
 
+    #[inline]
     pub fn optional(&self) -> bool {
         self.detail().map_or(false, |d| d.optional)
     }
 
     // `Some` if it overrides the package name.
     // If `None`, use the dependency name as the package name.
+    #[inline]
     pub fn package(&self) -> Option<&str> {
         match *self {
             Dependency::Simple(_) => None,
@@ -447,6 +455,7 @@ impl Dependency {
     }
 
     // Git URL of this dependency, if any
+    #[inline]
     pub fn git(&self) -> Option<&str> {
         self.detail().and_then(|d| d.git.as_deref())
     }
@@ -565,12 +574,14 @@ impl Publish {
 }
 
 impl Default for Publish {
+    #[inline]
     fn default() -> Self {
         Publish::Flag(true)
     }
 }
 
 impl PartialEq<Publish> for bool {
+    #[inline]
     fn eq(&self, p: &Publish) -> bool {
         match *p {
             Publish::Flag(flag) => flag == *self,
@@ -580,6 +591,7 @@ impl PartialEq<Publish> for bool {
 }
 
 impl PartialEq<bool> for Publish {
+    #[inline]
     fn eq(&self, b: &bool) -> bool {
         b.eq(self)
     }

@@ -768,14 +768,14 @@ impl Default for MaintenanceStatus {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Edition {
     #[serde(rename = "2015")]
-    E2015,
+    E2015 = 2015,
     #[serde(rename = "2018")]
-    E2018,
+    E2018 = 2018,
     #[serde(rename = "2021")]
-    E2021,
+    E2021 = 2021,
 }
 
 impl Default for Edition {
@@ -784,12 +784,12 @@ impl Default for Edition {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Resolver {
     #[serde(rename = "1")]
-    V1,
+    V1 = 1,
     #[serde(rename = "2")]
-    V2,
+    V2 = 2,
 }
 
 impl Display for Resolver {

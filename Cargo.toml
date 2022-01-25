@@ -22,4 +22,4 @@ serde_derive = "1.0.130"
 toml = "0.5.8"
 
 [badges]
-maintenance = { status = "actively-maintained" }
+maintenance = { status = "actively-developed" }

@@ -417,7 +417,7 @@ impl Default for Product {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
     #[serde(default, serialize_with = "toml::ser::tables_last")]
@@ -580,6 +580,39 @@ pub struct Package<Metadata = Value> {
     pub resolver: Option<Resolver>,
 
     pub metadata: Option<Metadata>,
+}
+
+impl Package {
+    /// Prefer creating it by parsing `Manifest` instead
+    pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            version: version.into(),
+            edition: Edition::E2021,
+            rust_version: None,
+            build: None,
+            workspace: None,
+            authors: Default::default(),
+            links: None,
+            description: None,
+            homepage: None,
+            documentation: None,
+            readme: OptionalFile::Flag(true),
+            keywords: Default::default(),
+            categories: Default::default(),
+            license: None,
+            license_file: None,
+            repository: None,
+            default_run: None,
+            autobins: true,
+            autoexamples: true,
+            autotests: true,
+            autobenches: true,
+            publish: Publish::Flag(true),
+            resolver: None,
+            metadata: None,
+        }
+    }
 }
 
 /// Readme of build.rs path

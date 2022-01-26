@@ -582,7 +582,7 @@ pub struct Package<Metadata = Value> {
     pub metadata: Option<Metadata>,
 }
 
-impl Package {
+impl<T> Package<T> {
     /// Prefer creating it by parsing `Manifest` instead
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {

@@ -283,6 +283,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 }
             }
         }
+        // ensure bins are deterministic
+        out.sort_by(|a,b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
         out
     }
 }

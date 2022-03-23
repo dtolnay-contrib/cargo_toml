@@ -12,3 +12,6 @@ readme = "SOMETHING"
 
 [badges]
 coveralls = {}
+
+[profile.release]
+strip = false

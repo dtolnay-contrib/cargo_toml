@@ -29,9 +29,9 @@ fn opt_level() {
     assert_eq!(
         3,
         m.profile
-            .bench
+            .bench.as_ref()
             .unwrap()
-            .opt_level
+            .opt_level.as_ref()
             .unwrap()
             .as_integer()
             .unwrap()
@@ -39,6 +39,7 @@ fn opt_level() {
     assert_eq!(false, m.lib.unwrap().bench);
     assert_eq!(cargo_toml::Edition::E2015, package.edition);
     assert_eq!(1, m.patch.len());
+    assert_eq!(Some(true), m.profile.bench.unwrap().strip);
 }
 
 #[test]
@@ -67,6 +68,7 @@ fn autolib() {
     assert_eq!("auto_lib", lib.name.unwrap());
     assert_eq!(Some(vec!["rlib".into()]), lib.crate_type);
     assert_eq!(0, m.bin.len());
+    assert_eq!(Some(false), m.profile.release.unwrap().strip);
 }
 
 #[test]

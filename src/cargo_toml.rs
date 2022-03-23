@@ -12,6 +12,7 @@ use std::path::Path;
 extern crate serde_derive;
 use serde::Deserialize;
 use serde::Deserializer;
+use serde::de::Unexpected;
 use std::collections::BTreeMap;
 pub use toml::Value;
 
@@ -323,6 +324,7 @@ pub struct Profile {
     pub panic: Option<String>,
     pub incremental: Option<bool>,
     pub overflow_checks: Option<bool>,
+    #[serde(default, deserialize_with = "strings_as_true", skip_serializing_if = "Option::is_none")]
     pub strip: Option<bool>,
 
     /// profile overrides
@@ -712,6 +714,19 @@ where
     D: Deserializer<'de>,
 {
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
+}
+
+fn strings_as_true<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
+    where D: Deserializer<'de>
+{
+    use serde::de::Error;
+    let val: Option<Value> = Deserialize::deserialize(deserializer)?;
+    Ok(match val {
+        Some(Value::String(_)) => Some(true),
+        Some(Value::Boolean(v)) => Some(v),
+        Some(_) => return Err(D::Error::invalid_type(Unexpected::Other("strip option"), &"bool or str")),
+        _ => None,
+    })
 }
 
 /// Deprecated

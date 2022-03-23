@@ -16,6 +16,7 @@ publish = false
 
 [profile.bench]
 opt-level = 3
+strip = "symbols"
 
 [lib]
 name = "byteorder"

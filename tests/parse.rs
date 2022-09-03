@@ -69,6 +69,10 @@ fn autolib() {
     assert_eq!(Some(vec!["rlib".into()]), lib.crate_type);
     assert_eq!(0, m.bin.len());
     assert_eq!(Some(false), m.profile.release.unwrap().strip);
+    #[allow(deprecated)]
+    {
+        assert_eq!(m.replace.len(), 2);
+    }
 }
 
 #[test]

@@ -69,6 +69,14 @@ pub struct Manifest<Metadata = Value> {
     #[serde(
         default,
         serialize_with = "toml::ser::tables_last",
+        skip_serializing_if = "DepsSet::is_empty"
+    )]
+    #[deprecated(note = "Cargo recommends patch instead")]
+    pub replace: DepsSet,
+
+    #[serde(
+        default,
+        serialize_with = "toml::ser::tables_last",
         skip_serializing_if = "PatchSet::is_empty"
     )]
     pub patch: PatchSet,

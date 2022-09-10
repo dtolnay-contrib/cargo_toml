@@ -328,6 +328,30 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 }
 
+impl<Metadata: Default> Default for Manifest<Metadata> {
+    #[allow(deprecated)]
+    fn default() -> Self {
+        Self {
+            package: Default::default(),
+            workspace: Default::default(),
+            dependencies: Default::default(),
+            dev_dependencies: Default::default(),
+            build_dependencies: Default::default(),
+            target: Default::default(),
+            features: Default::default(),
+            replace: Default::default(),
+            patch: Default::default(),
+            lib: Default::default(),
+            profile: Default::default(),
+            badges: Default::default(),
+            bin: Default::default(),
+            bench: Default::default(),
+            test: Default::default(),
+            example: Default::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Profiles {
     pub release: Option<Profile>,
@@ -624,7 +648,7 @@ pub struct Package<Metadata = Value> {
     pub metadata: Option<Metadata>,
 }
 
-impl<T> Package<T> {
+impl<Metadata> Package<Metadata> {
     /// Prefer creating it by parsing `Manifest` instead
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
@@ -654,6 +678,12 @@ impl<T> Package<T> {
             resolver: None,
             metadata: None,
         }
+    }
+}
+
+impl<Metadata: Default> Default for Package<Metadata> {
+    fn default() -> Self {
+        Self::new("", "")
     }
 }
 

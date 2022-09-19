@@ -192,9 +192,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// This scans the disk to make the data in the manifest as complete as possible.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
-        let manifest_dir = path
-            .parent()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
+        let manifest_dir = path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir))
     }
 
@@ -203,10 +201,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// You can provide any implementation of directory scan, which doesn't have to
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
-    pub fn complete_from_abstract_filesystem(
-        &mut self,
-        fs: impl AbstractFilesystem,
-    ) -> Result<(), Error> {
+    pub fn complete_from_abstract_filesystem(&mut self, fs: impl AbstractFilesystem) -> Result<(), Error> {
         if let Some(ref package) = self.package {
             let src = match fs.file_names_in("src") {
                 Ok(src) => src,
@@ -281,14 +276,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 
     /// Return the set of path overrided in `Cargo.toml`.
-    fn autoset(
-        &self,
-        out: &mut Vec<Product>,
-        dir: &str,
-        fs: &dyn AbstractFilesystem,
-    ) -> BTreeSet<String> {
-        let overrides: BTreeSet<_> = out
-            .iter()
+    fn autoset(&self, out: &mut Vec<Product>, dir: &str, fs: &dyn AbstractFilesystem) -> BTreeSet<String> {
+        let overrides: BTreeSet<_> = out.iter()
             .filter_map(|product| product.path.clone())
             .collect();
 
@@ -561,7 +550,7 @@ impl Dependency {
                     && d.tag.is_none()
                     && d.branch.is_none()
                     && d.rev.is_none()
-            }
+            },
         }
     }
 }

@@ -26,16 +26,7 @@ fn opt_level() {
     let m = Manifest::from_slice(&read("tests/opt_level.toml").unwrap()).unwrap();
     let package = m.package.as_ref().unwrap();
     assert_eq!("byteorder", package.name);
-    assert_eq!(
-        3,
-        m.profile
-            .bench.as_ref()
-            .unwrap()
-            .opt_level.as_ref()
-            .unwrap()
-            .as_integer()
-            .unwrap()
-    );
+    assert_eq!(3, m.profile.bench.as_ref().unwrap().opt_level.as_ref().unwrap().as_integer().unwrap());
     assert_eq!(false, m.lib.unwrap().bench);
     assert_eq!(cargo_toml::Edition::E2015, package.edition);
     assert_eq!(1, m.patch.len());
@@ -140,7 +131,6 @@ fn proc_macro() {
     let lib = m.lib.as_ref().unwrap();
     assert_eq!(None, lib.crate_type);
     assert_eq!(true, lib.proc_macro);
-
 }
 
 #[test]
@@ -160,14 +150,6 @@ fn serialize_virtual_manifest() {
     "#;
     let m = Manifest::from_slice(manifest).unwrap();
     let serialized = toml::to_string(&m).unwrap();
-    assert_eq!(
-        serialized,
-        [
-            "[workspace]",
-            "members = [\"autobin\", \"autolib\"]",
-            "",
-        ]
-        .join("\n"),
-    );
+    assert_eq!(serialized, ["[workspace]", "members = [\"autobin\", \"autolib\"]", "",].join("\n"),);
     assert!(Manifest::from_str(&serialized).is_ok());
 }

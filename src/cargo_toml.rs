@@ -6,14 +6,15 @@
 use std::fmt::Display;
 use std::fs;
 use std::io;
+use std::mem::take;
 use std::path::Path;
 
 #[macro_use]
 extern crate serde_derive;
+use serde::de::Unexpected;
 use serde::Deserialize;
 use serde::Deserializer;
-use serde::de::Unexpected;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 pub use toml::Value;
 
 pub type DepsSet = BTreeMap<String, Dependency>;
@@ -229,9 +230,12 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 })
             }
 
-            if package.autobins && self.bin.is_empty() {
-                self.bin = self.autoset("src/bin", &fs);
-                if src.contains("main.rs") {
+            if package.autobins {
+                let mut bin = take(&mut self.bin);
+                let overrides = self.autoset(&mut bin, "src/bin", &fs);
+                self.bin = bin;
+
+                if src.contains("main.rs") && !overrides.contains("src/main.rs") {
                     self.bin.push(Product {
                         name: Some(package.name.clone()),
                         path: Some("src/main.rs".to_string()),
@@ -240,25 +244,38 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                     })
                 }
             }
-            if package.autoexamples && self.example.is_empty() {
-                self.example = self.autoset("examples", &fs);
+            if package.autoexamples {
+                let mut example = take(&mut self.example);
+                self.autoset(&mut example, "examples", &fs);
+                self.example = example;
             }
-            if package.autotests && self.test.is_empty() {
-                self.test = self.autoset("tests", &fs);
+            if package.autotests {
+                let mut test = take(&mut self.test);
+                self.autoset(&mut test, "tests", &fs);
+                self.test = test;
             }
-            if package.autobenches && self.bench.is_empty() {
-                self.bench = self.autoset("benches", &fs);
+            if package.autobenches {
+                let mut bench = take(&mut self.bench);
+                self.autoset(&mut bench, "benches", &fs);
+                self.bench = bench;
             }
         }
         if let Some(ref mut package) = self.package {
             if matches!(package.build, None | Some(OptionalFile::Flag(true))) {
-                if fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
+                if fs
+                    .file_names_in(".")
+                    .map_or(false, |dir| dir.contains("build.rs"))
+                {
                     package.build = Some(OptionalFile::Path("build.rs".into()));
                 }
             }
             if matches!(package.readme, OptionalFile::Flag(true)) {
                 let files = fs.file_names_in(".").ok();
-                if let Some(name) = files.as_ref().and_then(|dir| dir.get("README.md").or_else(|| dir.get("README.txt")).or_else(|| dir.get("README"))) {
+                if let Some(name) = files.as_ref().and_then(|dir| {
+                    dir.get("README.md")
+                        .or_else(|| dir.get("README.txt"))
+                        .or_else(|| dir.get("README"))
+                }) {
                     package.build = Some(OptionalFile::Path((**name).to_owned()));
                 }
             }
@@ -266,12 +283,28 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         Ok(())
     }
 
-    fn autoset(&self, dir: &str, fs: &dyn AbstractFilesystem) -> Vec<Product> {
-        let mut out = Vec::new();
+    /// Return the set of path overrided in `Cargo.toml`.
+    fn autoset(
+        &self,
+        out: &mut Vec<Product>,
+        dir: &str,
+        fs: &dyn AbstractFilesystem,
+    ) -> BTreeSet<String> {
+        let overrides: BTreeSet<_> = out
+            .iter()
+            .filter_map(|product| product.path.clone())
+            .collect();
+
         if let Some(ref package) = self.package {
             if let Ok(bins) = fs.file_names_in(dir) {
                 for name in bins {
                     let rel_path = format!("{}/{}", dir, name);
+
+                    if overrides.contains(&rel_path) {
+                        // Skip if user overrides the default auto discovery.
+                        continue;
+                    }
+
                     if name.ends_with(".rs") {
                         out.push(Product {
                             name: Some(name.trim_end_matches(".rs").into()),
@@ -293,8 +326,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             }
         }
         // ensure bins are deterministic
-        out.sort_by(|a,b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
-        out
+        out.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
+        overrides
     }
 }
 
@@ -332,7 +365,11 @@ pub struct Profile {
     pub panic: Option<String>,
     pub incremental: Option<bool>,
     pub overflow_checks: Option<bool>,
-    #[serde(default, deserialize_with = "strings_as_true", skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "strings_as_true",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub strip: Option<bool>,
 
     /// profile overrides
@@ -725,14 +762,20 @@ where
 }
 
 fn strings_as_true<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
-    where D: Deserializer<'de>
+where
+    D: Deserializer<'de>,
 {
     use serde::de::Error;
     let val: Option<Value> = Deserialize::deserialize(deserializer)?;
     Ok(match val {
         Some(Value::String(_)) => Some(true),
         Some(Value::Boolean(v)) => Some(v),
-        Some(_) => return Err(D::Error::invalid_type(Unexpected::Other("strip option"), &"bool or str")),
+        Some(_) => {
+            return Err(D::Error::invalid_type(
+                Unexpected::Other("strip option"),
+                &"bool or str",
+            ))
+        }
         _ => None,
     })
 }

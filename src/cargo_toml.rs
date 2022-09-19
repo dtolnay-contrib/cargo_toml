@@ -262,10 +262,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         }
         if let Some(ref mut package) = self.package {
             if matches!(package.build, None | Some(OptionalFile::Flag(true))) {
-                if fs
-                    .file_names_in(".")
-                    .map_or(false, |dir| dir.contains("build.rs"))
-                {
+                if fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
                     package.build = Some(OptionalFile::Path("build.rs".into()));
                 }
             }
@@ -365,11 +362,7 @@ pub struct Profile {
     pub panic: Option<String>,
     pub incremental: Option<bool>,
     pub overflow_checks: Option<bool>,
-    #[serde(
-        default,
-        deserialize_with = "strings_as_true",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, deserialize_with = "strings_as_true", skip_serializing_if = "Option::is_none")]
     pub strip: Option<bool>,
 
     /// profile overrides
@@ -762,20 +755,14 @@ where
 }
 
 fn strings_as_true<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
-where
-    D: Deserializer<'de>,
+    where D: Deserializer<'de>
 {
     use serde::de::Error;
     let val: Option<Value> = Deserialize::deserialize(deserializer)?;
     Ok(match val {
         Some(Value::String(_)) => Some(true),
         Some(Value::Boolean(v)) => Some(v),
-        Some(_) => {
-            return Err(D::Error::invalid_type(
-                Unexpected::Other("strip option"),
-                &"bool or str",
-            ))
-        }
+        Some(_) => return Err(D::Error::invalid_type(Unexpected::Other("strip option"), &"bool or str")),
         _ => None,
     })
 }

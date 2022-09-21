@@ -201,7 +201,17 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// You can provide any implementation of directory scan, which doesn't have to
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
-    pub fn complete_from_abstract_filesystem(&mut self, fs: impl AbstractFilesystem) -> Result<(), Error> {
+    pub fn complete_from_abstract_filesystem(
+        &mut self,
+        fs: impl AbstractFilesystem,
+    ) -> Result<(), Error> {
+        self.complete_from_abstract_filesystem_inner(&fs)
+    }
+
+    fn complete_from_abstract_filesystem_inner(
+        &mut self,
+        fs: &dyn AbstractFilesystem,
+    ) -> Result<(), Error> {
         if let Some(ref package) = self.package {
             let src = match fs.file_names_in("src") {
                 Ok(src) => src,
@@ -227,7 +237,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
             if package.autobins {
                 let mut bin = take(&mut self.bin);
-                let overrides = self.autoset(&mut bin, "src/bin", &fs);
+                let overrides = self.autoset(&mut bin, "src/bin", fs);
                 self.bin = bin;
 
                 if src.contains("main.rs") && !overrides.contains("src/main.rs") {
@@ -241,17 +251,17 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             }
             if package.autoexamples {
                 let mut example = take(&mut self.example);
-                self.autoset(&mut example, "examples", &fs);
+                self.autoset(&mut example, "examples", fs);
                 self.example = example;
             }
             if package.autotests {
                 let mut test = take(&mut self.test);
-                self.autoset(&mut test, "tests", &fs);
+                self.autoset(&mut test, "tests", fs);
                 self.test = test;
             }
             if package.autobenches {
                 let mut bench = take(&mut self.bench);
-                self.autoset(&mut bench, "benches", &fs);
+                self.autoset(&mut bench, "benches", fs);
                 self.bench = bench;
             }
         }

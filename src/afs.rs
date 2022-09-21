@@ -7,6 +7,15 @@ pub trait AbstractFilesystem {
     fn file_names_in(&self, rel_path: &str) -> io::Result<HashSet<Box<str>>>;
 }
 
+impl<T> AbstractFilesystem for &T
+where
+    T: AbstractFilesystem + ?Sized,
+{
+    fn file_names_in(&self, rel_path: &str) -> io::Result<HashSet<Box<str>>> {
+        <T as AbstractFilesystem>::file_names_in(*self, rel_path)
+    }
+}
+
 pub struct Filesystem<'a> {
     path: &'a Path,
 }

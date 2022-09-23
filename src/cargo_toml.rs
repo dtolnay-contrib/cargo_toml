@@ -3,15 +3,14 @@
 //!
 //! See `Manifest::from_slice`.
 
+use serde::Serializer;
+use serde::Serialize;
+use std::convert::TryFrom;
 use std::fmt::Display;
 use std::fs;
 use std::io;
 use std::mem::take;
 use std::path::Path;
-
-#[macro_use]
-extern crate serde_derive;
-use serde::de::Unexpected;
 use serde::Deserialize;
 use serde::Deserializer;
 use std::collections::{BTreeMap, BTreeSet};
@@ -371,27 +370,125 @@ impl Profiles {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(try_from = "toml::Value")]
+pub enum DebugSetting {
+    /// 0 or false
+    None = 0,
+    /// 1 = line tables only
+    Lines = 1,
+    /// 2 or true
+    Full = 2,
+}
+
+impl TryFrom<Value> for DebugSetting {
+    type Error = Error;
+    fn try_from(v: Value) -> Result<Self, Error> {
+        Ok(match v {
+            Value::Boolean(b) => if b { Self::Full } else { Self::None },
+            Value::Integer(n) => match n {
+                0 => Self::None,
+                1 => Self::Lines,
+                2 => Self::Full,
+                _ => return Err(Error::Other("wrong number for debug setting")),
+            },
+            _ => return Err(Error::Other("wrong data type for debug setting")),
+        })
+    }
+}
+
+impl Serialize for DebugSetting {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::None => serializer.serialize_bool(false),
+            Self::Lines => serializer.serialize_i8(1),
+            Self::Full => serializer.serialize_bool(true),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(try_from = "toml::Value")]
+pub enum StripSetting {
+    /// false
+    None,
+    Debuginfo,
+    /// true
+    Symbols
+}
+
+impl Serialize for StripSetting {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::None => serializer.serialize_bool(false),
+            Self::Debuginfo => serializer.serialize_str("debuginfo"),
+            Self::Symbols => serializer.serialize_bool(true),
+        }
+    }
+}
+
+
+impl TryFrom<Value> for StripSetting {
+    type Error = Error;
+    fn try_from(v: Value) -> Result<Self, Error> {
+        Ok(match v {
+            Value::Boolean(b) => if b { Self::Symbols } else { Self::None },
+            Value::String(s) => match s.as_str() {
+                "none" => Self::None,
+                "debuginfo" => Self::Debuginfo,
+                "symbols" => Self::Symbols,
+                _ => return Err(Error::Other("strip setting has unknown string value")),
+            },
+            _ => return Err(Error::Other("wrong data type for strip setting")),
+        })
+    }
+}
+
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Profile {
     /// num or z, s
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub opt_level: Option<Value>,
+
     /// 0,1,2 or bool
-    pub debug: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub debug: Option<DebugSetting>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub split_debuginfo: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rpath: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lto: Option<Value>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_assertions: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codegen_units: Option<u16>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panic: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub incremental: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overflow_checks: Option<bool>,
-    #[serde(default, deserialize_with = "strings_as_true", skip_serializing_if = "Option::is_none")]
-    pub strip: Option<bool>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub strip: Option<StripSetting>,
 
     /// profile overrides
     #[serde(default, serialize_with = "toml::ser::tables_last")]
     pub package: BTreeMap<String, Value>,
+
     /// profile overrides
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_override: Option<Value>,
 }
 
@@ -783,19 +880,6 @@ where
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
 }
 
-fn strings_as_true<'de, D>(deserializer: D) -> Result<Option<bool>, D::Error>
-    where D: Deserializer<'de>
-{
-    use serde::de::Error;
-    let val: Option<Value> = Deserialize::deserialize(deserializer)?;
-    Ok(match val {
-        Some(Value::String(_)) => Some(true),
-        Some(Value::Boolean(v)) => Some(v),
-        Some(_) => return Err(D::Error::invalid_type(Unexpected::Other("strip option"), &"bool or str")),
-        _ => None,
-    })
-}
-
 /// Deprecated
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -819,6 +903,7 @@ pub struct Badges {
     /// Travis CI: `repository` in format "<user>/<project>" is required.
     /// `branch` is optional; default is `master`
     #[serde(default, deserialize_with = "ok_or_default")]
+    #[deprecated(note = "badges are deprecated, and travis is dead")]
     pub travis_ci: Option<Badge>,
 
     /// Codecov: `repository` is required. `branch` is optional; default is `master`
@@ -848,6 +933,7 @@ pub struct Badges {
 }
 
 impl Badges {
+    #[allow(deprecated)]
     /// Determine whether or not a Profiles struct should be serialized
     fn should_skip_serializing(&self) -> bool {
         self.appveyor.is_none()

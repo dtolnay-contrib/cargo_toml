@@ -1,4 +1,4 @@
-use cargo_toml::Manifest;
+use cargo_toml::{Manifest, StripSetting};
 use std::fs::read;
 
 #[test]
@@ -30,7 +30,7 @@ fn opt_level() {
     assert_eq!(false, m.lib.unwrap().bench);
     assert_eq!(cargo_toml::Edition::E2015, package.edition);
     assert_eq!(1, m.patch.len());
-    assert_eq!(Some(true), m.profile.bench.unwrap().strip);
+    assert_eq!(Some(StripSetting::Symbols), m.profile.bench.unwrap().strip);
 }
 
 #[test]
@@ -59,7 +59,7 @@ fn autolib() {
     assert_eq!("auto_lib", lib.name.unwrap());
     assert_eq!(Some(vec!["rlib".into()]), lib.crate_type);
     assert_eq!(0, m.bin.len());
-    assert_eq!(Some(false), m.profile.release.unwrap().strip);
+    assert_eq!(Some(StripSetting::None), m.profile.release.unwrap().strip);
     #[allow(deprecated)]
     {
         assert_eq!(m.replace.len(), 2);

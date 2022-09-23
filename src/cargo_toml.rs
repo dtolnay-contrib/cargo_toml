@@ -5,6 +5,7 @@
 
 use serde::Serializer;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::fs;
@@ -357,6 +358,8 @@ pub struct Profiles {
     pub test: Option<Profile>,
     pub bench: Option<Profile>,
     pub doc: Option<Profile>,
+    #[serde(flatten)]
+    pub custom: HashMap<String, Profile>,
 }
 
 impl Profiles {
@@ -367,6 +370,7 @@ impl Profiles {
             && self.test.is_none()
             && self.bench.is_none()
             && self.doc.is_none()
+            && self.custom.is_empty()
     }
 }
 

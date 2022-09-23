@@ -1,0 +1,8 @@
+[package]
+name = "hi"
+version = "1.0.0"
+
+[dependencies]
+testdep.workspace = true
+otherdep = { workspace = true, features = ["bar"] }
+normal = "1"

@@ -119,14 +119,25 @@ pub struct Workspace<Metadata = Value> {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
+
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    pub dependencies: DepsSet,
 }
 
 fn default_true() -> bool {
     true
 }
 
+fn is_default<T: Default + Copy + PartialEq>(val: &T) -> bool {
+    *val == T::default()
+}
+
 fn is_true(val: &bool) -> bool {
     *val
+}
+
+fn is_false(val: &bool) -> bool {
+    !*val
 }
 
 impl Manifest<Value> {
@@ -229,8 +240,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 self.lib = Some(Product {
                     name: Some(package.name.replace('-', "_")),
                     path: Some("src/lib.rs".to_string()),
-                    edition: Some(package.edition),
-                    crate_type: Some(vec!["rlib".to_string()]),
+                    edition: package.edition,
+                    crate_type: vec!["rlib".to_string()],
                     ..old_lib
                 })
             }
@@ -244,7 +255,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                     self.bin.push(Product {
                         name: Some(package.name.clone()),
                         path: Some("src/main.rs".to_string()),
-                        edition: Some(package.edition),
+                        edition: package.edition,
                         ..Product::default()
                     })
                 }
@@ -303,7 +314,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                         out.push(Product {
                             name: Some(name.trim_end_matches(".rs").into()),
                             path: Some(rel_path),
-                            edition: Some(package.edition),
+                            edition: package.edition,
                             ..Product::default()
                         })
                     } else if let Ok(sub) = fs.file_names_in(&rel_path) {
@@ -311,7 +322,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                             out.push(Product {
                                 name: Some(name.into()),
                                 path: Some(rel_path + "/main.rs"),
-                                edition: Some(package.edition),
+                                edition: package.edition,
                                 ..Product::default()
                             })
                         }
@@ -568,12 +579,12 @@ pub struct Product {
 
     /// If the product is meant to be a compiler plugin, this field must be set to true
     /// for Cargo to correctly compile it and make it available for all dependencies.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "is_false")]
     pub plugin: bool,
 
     /// If the product is meant to be a "macros 1.1" procedural macro, this field must
     /// be set to true.
-    #[serde(default, alias = "proc_macro", alias = "proc-macro")]
+    #[serde(default, alias = "proc_macro", alias = "proc-macro", skip_serializing_if = "is_false")]
     pub proc_macro: bool,
 
     /// If set to false, `cargo test` will omit the `--test` flag to rustc, which
@@ -586,12 +597,12 @@ pub struct Product {
     /// `[package]` is configured to use, perhaps only compiling a library with the
     /// 2018 edition or only compiling one unit test with the 2015 edition. By default
     /// all products are compiled with the edition specified in `[package]`.
-    #[serde(default)]
-    pub edition: Option<Edition>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub edition: Edition,
 
     /// The available options are "dylib", "rlib", "staticlib", "cdylib", and "proc-macro".
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub crate_type: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub crate_type: Vec<String>,
 
     /// The required-features field specifies which features the product needs in order to be built.
     /// If any of the required features are not selected, the product will be skipped.
@@ -614,8 +625,8 @@ impl Default for Product {
             plugin: false,
             proc_macro: false,
             required_features: Vec::new(),
-            crate_type: None,
-            edition: Some(Edition::default()),
+            crate_type: Vec::new(),
+            edition: Edition::default(),
         }
     }
 }
@@ -636,14 +647,15 @@ pub struct Target {
 pub enum Dependency {
     Simple(String),
     Detailed(DependencyDetail),
+    Inherited(InheritedDependencyDetail),
 }
 
 impl Dependency {
     #[inline]
     pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
-            Dependency::Simple(_) => None,
             Dependency::Detailed(ref d) => Some(d),
+            Dependency::Simple(_) | Dependency::Inherited(_) => None,
         }
     }
 
@@ -652,6 +664,7 @@ impl Dependency {
         match *self {
             Dependency::Simple(ref v) => v,
             Dependency::Detailed(ref d) => d.version.as_deref().unwrap_or("*"),
+            Dependency::Inherited(_) => panic!("version requirement not available with workspace inheritance"),
         }
     }
 
@@ -660,6 +673,7 @@ impl Dependency {
         match *self {
             Dependency::Simple(_) => &[],
             Dependency::Detailed(ref d) => &d.features,
+            Dependency::Inherited(ref d) => &d.features,
         }
     }
 
@@ -673,8 +687,8 @@ impl Dependency {
     #[inline]
     pub fn package(&self) -> Option<&str> {
         match *self {
-            Dependency::Simple(_) => None,
             Dependency::Detailed(ref d) => d.package.as_deref(),
+            Dependency::Simple(_) | Dependency::Inherited(_) => None,
         }
     }
 
@@ -699,6 +713,7 @@ impl Dependency {
                     && d.branch.is_none()
                     && d.rev.is_none()
             },
+            Dependency::Inherited(_) => panic!("data not available with workspace inheritance"),
         }
     }
 }
@@ -706,20 +721,43 @@ impl Dependency {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
+    /// Requirement
     pub version: Option<String>,
+
     pub registry: Option<String>,
     pub registry_index: Option<String>,
     pub path: Option<String>,
+
     pub git: Option<String>,
     pub branch: Option<String>,
     pub tag: Option<String>,
     pub rev: Option<String>,
+
     #[serde(default)]
     pub features: Vec<String>,
-    #[serde(default)]
+
+    /// NB: Not allowed at workspace level
+    #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
-    pub default_features: Option<bool>,
+
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub default_features: bool,
+
+    /// Use this crate name instead of table key
     pub package: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct InheritedDependencyDetail {
+    #[serde(default)]
+    pub features: Vec<String>,
+
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub optional: bool,
+
+    #[serde(skip)]
+    pub workspace: bool,
 }
 
 /// You can replace `Metadata` type with your own

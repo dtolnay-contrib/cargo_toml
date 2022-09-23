@@ -1,0 +1,6 @@
+[workspace]
+members = ["hi"]
+
+[dependencies]
+testdep = "1.4"
+otherdep = { version = "3", features = ["foo"] }

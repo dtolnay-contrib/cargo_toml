@@ -11,14 +11,14 @@ fn own() {
     assert_eq!("cargo_toml", package.name);
     assert_eq!(cargo_toml::Edition::E2018, package.edition);
     let lib = m.lib.as_ref().unwrap();
-    assert_eq!(None, lib.crate_type);
+    assert!(lib.crate_type.is_empty());
 
     let serialized = toml::to_string(&m).unwrap();
     assert!(!serialized.contains("crate-type"));
 
     let m = Manifest::from_slice(serialized.as_bytes()).unwrap();
     let lib = m.lib.as_ref().unwrap();
-    assert_eq!(None, lib.crate_type);
+    assert!(lib.crate_type.is_empty());
 }
 
 #[test]
@@ -57,7 +57,7 @@ fn autolib() {
     assert!(!package.autoexamples);
     let lib = m.lib.unwrap();
     assert_eq!("auto_lib", lib.name.unwrap());
-    assert_eq!(Some(vec!["rlib".into()]), lib.crate_type);
+    assert_eq!(lib.crate_type, vec!["rlib".to_string()]);
     assert_eq!(0, m.bin.len());
     assert_eq!(Some(StripSetting::None), m.profile.release.unwrap().strip);
     #[allow(deprecated)]
@@ -108,7 +108,7 @@ fn proc_macro() {
     let package = m.package.as_ref().unwrap();
     assert_eq!("foo", package.name);
     let lib = m.lib.as_ref().unwrap();
-    assert_eq!(None, lib.crate_type);
+    assert!(lib.crate_type.is_empty());
     assert_eq!(true, lib.proc_macro);
 
     let serialized = toml::to_string(&m).unwrap();
@@ -117,7 +117,7 @@ fn proc_macro() {
 
     let m = Manifest::from_slice(serialized.as_bytes()).unwrap();
     let lib = m.lib.as_ref().unwrap();
-    assert_eq!(None, lib.crate_type);
+    assert!(lib.crate_type.is_empty());
     assert_eq!(true, lib.proc_macro);
 
     // The "proc-macro" field can also be spelled "proc_macro"
@@ -129,7 +129,7 @@ fn proc_macro() {
     "#;
     let m = Manifest::from_slice(manifest).unwrap();
     let lib = m.lib.as_ref().unwrap();
-    assert_eq!(None, lib.crate_type);
+    assert!(lib.crate_type.is_empty());
     assert_eq!(true, lib.proc_macro);
 }
 
@@ -152,4 +152,12 @@ fn serialize_virtual_manifest() {
     let serialized = toml::to_string(&m).unwrap();
     assert_eq!(serialized, ["[workspace]", "members = [\"autobin\", \"autolib\"]", "",].join("\n"),);
     assert!(Manifest::from_str(&serialized).is_ok());
+}
+
+#[test]
+fn inherit() {
+    let m = Manifest::from_slice(&read("tests/inheritance/Cargo.toml").unwrap()).unwrap();
+    assert_eq!(2, m.dependencies.len());
+    let m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
+    assert_eq!(3, m.dependencies.len());
 }

@@ -444,6 +444,46 @@ impl TryFrom<Value> for StripSetting {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
+#[serde(try_from = "toml::Value")]
+pub enum LtoSetting {
+    /// off
+    None,
+    /// false
+    ThinLocal,
+    Thin,
+    /// True
+    Fat,
+}
+
+impl Serialize for LtoSetting {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::None => serializer.serialize_str("off"),
+            Self::ThinLocal => serializer.serialize_bool(false),
+            Self::Thin => serializer.serialize_str("thin"),
+            Self::Fat => serializer.serialize_bool(true),
+        }
+    }
+}
+
+
+impl TryFrom<Value> for LtoSetting {
+    type Error = Error;
+    fn try_from(v: Value) -> Result<Self, Error> {
+        Ok(match v {
+            Value::Boolean(b) => if b { Self::Fat } else { Self::ThinLocal },
+            Value::String(s) => match s.as_str() {
+                "off" => Self::None,
+                "thin" => Self::Thin,
+                "fat" => Self::Fat,
+                _ => return Err(Error::Other("lto setting has unknown string value")),
+            },
+            _ => return Err(Error::Other("wrong data type for lto setting")),
+        })
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -463,7 +503,7 @@ pub struct Profile {
     pub rpath: Option<bool>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lto: Option<Value>,
+    pub lto: Option<LtoSetting>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_assertions: Option<bool>,

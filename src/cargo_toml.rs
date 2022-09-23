@@ -103,7 +103,7 @@ pub struct Manifest<Metadata = Value> {
     pub example: Vec<Product>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Workspace<Metadata = Value> {
     #[serde(default)]
@@ -227,7 +227,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             if !has_path && src.contains("lib.rs") {
                 let old_lib = self.lib.take().unwrap_or_default();
                 self.lib = Some(Product {
-                    name: Some(package.name.replace("-", "_")),
+                    name: Some(package.name.replace('-', "_")),
                     path: Some("src/lib.rs".to_string()),
                     edition: Some(package.edition),
                     crate_type: Some(vec!["rlib".to_string()]),
@@ -266,10 +266,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             }
         }
         if let Some(ref mut package) = self.package {
-            if matches!(package.build, None | Some(OptionalFile::Flag(true))) {
-                if fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
-                    package.build = Some(OptionalFile::Path("build.rs".into()));
-                }
+            if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
+                package.build = Some(OptionalFile::Path("build.rs".into()));
             }
             if matches!(package.readme, OptionalFile::Flag(true)) {
                 let files = fs.file_names_in(".").ok();
@@ -418,7 +416,7 @@ pub enum StripSetting {
     None,
     Debuginfo,
     /// true
-    Symbols
+    Symbols,
 }
 
 impl Serialize for StripSetting {
@@ -431,9 +429,9 @@ impl Serialize for StripSetting {
     }
 }
 
-
 impl TryFrom<Value> for StripSetting {
     type Error = Error;
+
     fn try_from(v: Value) -> Result<Self, Error> {
         Ok(match v {
             Value::Boolean(b) => if b { Self::Symbols } else { Self::None },
@@ -471,9 +469,9 @@ impl Serialize for LtoSetting {
     }
 }
 
-
 impl TryFrom<Value> for LtoSetting {
     type Error = Error;
+
     fn try_from(v: Value) -> Result<Self, Error> {
         Ok(match v {
             Value::Boolean(b) => if b { Self::Fat } else { Self::ThinLocal },
@@ -487,7 +485,6 @@ impl TryFrom<Value> for LtoSetting {
         })
     }
 }
-
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -536,7 +533,7 @@ pub struct Profile {
     pub build_override: Option<Value>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 /// Cargo uses the term "target" for both "target platform" and "build target" (the thing to build),
 /// which makes it ambigous.
@@ -623,7 +620,7 @@ impl Default for Product {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
     #[serde(default, serialize_with = "toml::ser::tables_last")]
@@ -634,7 +631,7 @@ pub struct Target {
     pub build_dependencies: DepsSet,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Dependency {
     Simple(String),
@@ -706,7 +703,7 @@ impl Dependency {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
     pub version: Option<String>,
@@ -727,7 +724,7 @@ pub struct DependencyDetail {
 
 /// You can replace `Metadata` type with your own
 /// to parse into something more useful than a generic toml `Value`
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub struct Package<Metadata = Value> {
@@ -901,7 +898,7 @@ impl PartialEq<bool> for Publish {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Badge {
     pub repository: String,
@@ -925,7 +922,7 @@ where
 }
 
 /// Deprecated
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Badges {
     /// Appveyor: `repository` is required. `branch` is optional; default is `master`
@@ -1041,19 +1038,13 @@ pub enum Resolver {
 
 impl Display for Resolver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Resolver::V1 => "1",
-                Resolver::V2 => "2",
-            }
-        )
+        write!(f, "{}", match self {
+            Resolver::V1 => "1",
+            Resolver::V2 => "2",
+        })
     }
 }
 
 impl Default for Resolver {
-    fn default() -> Self {
-        Self::V1
-    }
+    fn default() -> Self { Self::V1 }
 }

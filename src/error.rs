@@ -1,6 +1,5 @@
 use std::error::Error as StdErr;
-use std::fmt;
-use std::io;
+use std::{fmt, io};
 
 #[derive(Debug)]
 #[non_exhaustive]

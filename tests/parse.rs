@@ -47,16 +47,15 @@ fn autobin() {
         .collect();
     bins.sort();
 
-    let mut expected_bins =
-        [
-            ("abcde", "src/abcde.rs"),
-            ("auto-bin", "src/main.rs"),
-            ("a", "src/bin/a.rs"),
-            ("b", "src/bin/b.rs"),
-            ("c", "src/bin/c/main.rs"),
-            ("d", "src/bin/d/main.rs"),
-            ("e", "src/bin/e/main.rs"),
-        ];
+    let mut expected_bins = [
+        ("abcde", "src/abcde.rs"),
+        ("auto-bin", "src/main.rs"),
+        ("a", "src/bin/a.rs"),
+        ("b", "src/bin/b.rs"),
+        ("c", "src/bin/c/main.rs"),
+        ("d", "src/bin/d/main.rs"),
+        ("e", "src/bin/e/main.rs"),
+    ];
     expected_bins.sort();
 
     assert_eq!(bins, expected_bins);

@@ -3,18 +3,13 @@
 //!
 //! See `Manifest::from_slice`.
 
-use serde::Serializer;
-use serde::Serialize;
-use std::collections::HashMap;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
 use std::fmt::Display;
-use std::fs;
-use std::io;
 use std::mem::take;
 use std::path::Path;
-use serde::Deserialize;
-use serde::Deserializer;
-use std::collections::{BTreeMap, BTreeSet};
+use std::{fs, io};
 pub use toml::Value;
 
 pub type DepsSet = BTreeMap<String, Dependency>;
@@ -36,50 +31,22 @@ pub use crate::error::Error;
 pub struct Manifest<Metadata = Value> {
     pub package: Option<Package<Metadata>>,
     pub workspace: Option<Workspace<Metadata>>,
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "DepsSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "DepsSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
     pub dev_dependencies: DepsSet,
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "DepsSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
     pub build_dependencies: DepsSet,
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "TargetDepsSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "TargetDepsSet::is_empty")]
     pub target: TargetDepsSet,
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "FeatureSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
 
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "DepsSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
     #[deprecated(note = "Cargo recommends patch instead")]
     pub replace: DepsSet,
 
-    #[serde(
-        default,
-        serialize_with = "toml::ser::tables_last",
-        skip_serializing_if = "PatchSet::is_empty"
-    )]
+    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "PatchSet::is_empty")]
     pub patch: PatchSet,
 
     /// Note that due to autolibs feature this is not the complete list
@@ -219,10 +186,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         self.complete_from_abstract_filesystem_inner(&fs)
     }
 
-    fn complete_from_abstract_filesystem_inner(
-        &mut self,
-        fs: &dyn AbstractFilesystem,
-    ) -> Result<(), Error> {
+    fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
         if let Some(ref package) = self.package {
             let src = match fs.file_names_in("src") {
                 Ok(src) => src,

@@ -775,7 +775,7 @@ pub struct InheritedDependencyDetail {
     #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
 
-    #[serde(skip)]
+    #[serde(skip_serializing_if = "is_false")]
     pub workspace: bool,
 }
 

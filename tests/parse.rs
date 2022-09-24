@@ -41,8 +41,31 @@ fn autobin() {
     assert_eq!(cargo_toml::Edition::E2018, package.edition);
     assert!(package.autobins);
     assert!(m.lib.is_none());
-    assert_eq!(1, m.bin.len());
-    assert_eq!(Some("auto-bin"), m.bin[0].name.as_deref());
+
+    let mut bins: Vec<(&str, &str)> = m.bin.iter()
+        .filter_map(|product| Some((product.name.as_deref()?, product.path.as_deref()?)))
+        .collect();
+    bins.sort();
+
+    let mut expected_bins =
+        [
+            ("abcde", "src/abcde.rs"),
+            ("auto-bin", "src/main.rs"),
+            ("a", "src/bin/a.rs"),
+            ("b", "src/bin/b.rs"),
+            ("c", "src/bin/c/main.rs"),
+            ("d", "src/bin/d/main.rs"),
+            ("e", "src/bin/e/main.rs"),
+        ];
+    expected_bins.sort();
+
+    assert_eq!(bins, expected_bins);
+
+    let bin_e = m.bin.iter()
+        .find(|product| product.name.as_deref() == Some("e"))
+        .unwrap();
+
+    assert_eq!(&bin_e.required_features, &["feat1"]);
 }
 
 #[test]

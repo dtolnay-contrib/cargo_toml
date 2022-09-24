@@ -248,33 +248,53 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
             if package.autobins {
                 let mut bin = take(&mut self.bin);
-                let overrides = self.autoset(&mut bin, "src/bin", fs);
+                let (fully_overrided, mut partial_overrided) = self.autoset(&mut bin, "src/bin", fs);
                 self.bin = bin;
 
-                if src.contains("main.rs") && !overrides.contains("src/main.rs") {
-                    self.bin.push(Product {
-                        name: Some(package.name.clone()),
-                        path: Some("src/main.rs".to_string()),
-                        edition: package.edition,
-                        ..Product::default()
-                    })
+                if src.contains("main.rs") && !fully_overrided.contains("src/main.rs") {
+                    let rel_path = "src/main.rs".to_string();
+                    let name = &package.name;
+
+                    let product = if let Some(mut product) = partial_overrided.remove(name) {
+                        product.path = Some(rel_path);
+                        product
+                    } else {
+                        Product {
+                            name: Some(name.clone()),
+                            path: Some(rel_path),
+                            edition: package.edition,
+                            ..Product::default()
+                        }
+                    };
+                    self.bin.push(product);
                 }
             }
+
+            Self::sort_products(&mut self.bin);
+
             if package.autoexamples {
                 let mut example = take(&mut self.example);
                 self.autoset(&mut example, "examples", fs);
                 self.example = example;
             }
+
+            Self::sort_products(&mut self.example);
+
             if package.autotests {
                 let mut test = take(&mut self.test);
                 self.autoset(&mut test, "tests", fs);
                 self.test = test;
             }
+
+            Self::sort_products(&mut self.test);
+
             if package.autobenches {
                 let mut bench = take(&mut self.bench);
                 self.autoset(&mut bench, "benches", fs);
                 self.bench = bench;
             }
+
+            Self::sort_products(&mut self.bench);
         }
         if let Some(ref mut package) = self.package {
             if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
@@ -295,44 +315,79 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 
     /// Return the set of path overrided in `Cargo.toml`.
-    fn autoset(&self, out: &mut Vec<Product>, dir: &str, fs: &dyn AbstractFilesystem) -> BTreeSet<String> {
-        let overrides: BTreeSet<_> = out.iter()
+    fn autoset(
+        &self,
+        out: &mut Vec<Product>,
+        dir: &str,
+        fs: &dyn AbstractFilesystem,
+    ) -> (BTreeSet<String>, BTreeMap<String, Product>) {
+        let fully_overrided: BTreeSet<_> = out.iter()
             .filter_map(|product| product.path.clone())
             .collect();
+
+        let mut partial_overrided: BTreeMap<String, Product> = out.iter()
+            .filter_map(|product| {
+                match (&product.path, &product.name)  {
+                    (None, Some(name)) => {
+                        Some((name.clone(), product.clone()))
+                    },
+                    _ => None
+                }
+            })
+            .collect();
+
+        // Remove partially overrided items
+        out.retain(|product| product.path.is_some());
 
         if let Some(ref package) = self.package {
             if let Ok(bins) = fs.file_names_in(dir) {
                 for name in bins {
                     let rel_path = format!("{}/{}", dir, name);
 
-                    if overrides.contains(&rel_path) {
-                        // Skip if user overrides the default auto discovery.
-                        continue;
-                    }
-
                     if name.ends_with(".rs") {
-                        out.push(Product {
-                            name: Some(name.trim_end_matches(".rs").into()),
-                            path: Some(rel_path),
-                            edition: package.edition,
-                            ..Product::default()
-                        })
+                        if !fully_overrided.contains(&rel_path) {
+                            let name = name.trim_end_matches(".rs");
+
+                            let product = if let Some(mut product) = partial_overrided.remove(name) {
+                                product.path = Some(rel_path);
+                                product
+                            } else {
+                                Product {
+                                    name: Some(name.to_string()),
+                                    path: Some(rel_path),
+                                    edition: package.edition,
+                                    ..Product::default()
+                                }
+                            };
+                            out.push(product);
+                        }
                     } else if let Ok(sub) = fs.file_names_in(&rel_path) {
-                        if sub.contains("main.rs") {
-                            out.push(Product {
-                                name: Some(name.into()),
-                                path: Some(rel_path + "/main.rs"),
-                                edition: package.edition,
-                                ..Product::default()
-                            })
+                        let rel_path = format!("{rel_path}/main.rs");
+
+                        if sub.contains("main.rs") && !fully_overrided.contains(&rel_path) {
+                            let product = if let Some(mut product) = partial_overrided.remove(&*name) {
+                                product.path = Some(rel_path);
+                                product
+                            } else {
+                                Product {
+                                    name: Some(name.into()),
+                                    path: Some(rel_path),
+                                    edition: package.edition,
+                                    ..Product::default()
+                                }
+                            };
+                            out.push(product);
                         }
                     }
                 }
             }
         }
-        // ensure bins are deterministic
-        out.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
-        overrides
+        (fully_overrided, partial_overrided)
+    }
+
+    /// ensure bins are deterministic
+    fn sort_products(products: &mut [Product]) {
+        products.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
     }
 }
 

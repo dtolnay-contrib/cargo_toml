@@ -9,7 +9,7 @@ fn own() {
     let m = Manifest::<toml::Value>::from_slice_with_metadata(&read("Cargo.toml").unwrap()).unwrap();
     let package = m.package.as_ref().unwrap();
     assert_eq!("cargo_toml", package.name);
-    assert_eq!(cargo_toml::Edition::E2018, package.edition);
+    assert_eq!(cargo_toml::Edition::E2021, package.edition);
     let lib = m.lib.as_ref().unwrap();
     assert!(lib.crate_type.is_empty());
 

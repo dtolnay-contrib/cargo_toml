@@ -15,3 +15,20 @@ codegen-units = 256
 
 [profile.test.package."*"]
 debug = 0
+
+[feature]
+feat1 = []
+
+[[bin]]
+name = "a"
+
+[[bin]]
+name = "abcde"
+path = "src/abcde.rs"
+
+[[bin]]
+name = "c"
+
+[[bin]]
+name = "e"
+required-features = ["feat1"]

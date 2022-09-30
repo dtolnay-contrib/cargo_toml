@@ -801,8 +801,11 @@ pub struct Package<Metadata = Value> {
     /// MSRV 1.x (beware: does not require semver formatting)
     #[serde(default)]
     pub rust_version: Option<String>,
+
+    #[deprecated(note = "use `version()` method instead")]
     /// e.g. "1.9.0"
     pub version: String,
+
     #[serde(default)]
     pub build: Option<OptionalFile>,
     pub workspace: Option<String>,
@@ -853,6 +856,7 @@ pub struct Package<Metadata = Value> {
 
 impl<Metadata> Package<Metadata> {
     /// Prefer creating it by parsing `Manifest` instead
+    #[allow(deprecated)]
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -881,6 +885,12 @@ impl<Metadata> Package<Metadata> {
             resolver: None,
             metadata: None,
         }
+    }
+
+    /// Panics if the version is not available (e.g. inherited from workspace which hasn't been loaded)
+    #[allow(deprecated)]
+    pub fn version(&self) -> &str {
+        &self.version
     }
 }
 

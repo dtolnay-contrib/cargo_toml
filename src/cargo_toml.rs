@@ -353,6 +353,15 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     fn sort_products(products: &mut [Product]) {
         products.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
     }
+
+    /// Panics if it's not a package (only a workspace).
+    ///
+    /// You can access `.package` field directly to handle the `Option`.
+    #[track_caller]
+    #[inline]
+    pub fn package(&self) -> &Package<Metadata> {
+        self.package.as_ref().expect("not a package")
+    }
 }
 
 impl<Metadata: Default> Default for Manifest<Metadata> {

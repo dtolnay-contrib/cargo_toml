@@ -82,6 +82,7 @@ pub struct Workspace<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -390,11 +391,21 @@ impl<Metadata: Default> Default for Manifest<Metadata> {
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Profiles {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub release: Option<Profile>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub dev: Option<Profile>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub test: Option<Profile>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bench: Option<Profile>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<Profile>,
+
     #[serde(flatten)]
     pub custom: HashMap<String, Profile>,
 }
@@ -796,8 +807,10 @@ pub struct InheritedDependencyDetail {
 pub struct Package<Metadata = Value> {
     /// Careful: some names are uppercase
     pub name: String,
+
     #[serde(default)]
     pub edition: Edition,
+
     /// MSRV 1.x (beware: does not require semver formatting)
     #[serde(default)]
     pub rust_version: Option<String>,
@@ -808,6 +821,7 @@ pub struct Package<Metadata = Value> {
 
     #[serde(default)]
     pub build: Option<OptionalFile>,
+
     pub workspace: Option<String>,
     #[serde(default)]
     /// e.g. ["Author <e@mail>", "etc"] Deprecated.

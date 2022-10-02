@@ -9,7 +9,7 @@ fn own() {
     let m = Manifest::<toml::Value>::from_slice_with_metadata(&read("Cargo.toml").unwrap()).unwrap();
     let package = m.package();
     assert_eq!("cargo_toml", package.name);
-    assert_eq!(cargo_toml::Edition::E2021, package.edition);
+    assert_eq!(cargo_toml::Edition::E2021, package.edition());
     let lib = m.lib.as_ref().unwrap();
     assert!(lib.crate_type.is_empty());
 
@@ -28,7 +28,7 @@ fn opt_level() {
     assert_eq!("byteorder", package.name);
     assert_eq!(3, m.profile.bench.as_ref().unwrap().opt_level.as_ref().unwrap().as_integer().unwrap());
     assert_eq!(false, m.lib.as_ref().unwrap().bench);
-    assert_eq!(cargo_toml::Edition::E2015, package.edition);
+    assert_eq!(cargo_toml::Edition::E2015, package.edition());
     assert_eq!(1, m.patch.len());
     assert_eq!(Some(StripSetting::Symbols), m.profile.bench.as_ref().unwrap().strip);
 }
@@ -38,7 +38,7 @@ fn autobin() {
     let m = Manifest::from_path("tests/autobin/Cargo.toml").expect("load autobin");
     let package = m.package();
     assert_eq!("auto-bin", package.name);
-    assert_eq!(cargo_toml::Edition::E2018, package.edition);
+    assert_eq!(cargo_toml::Edition::E2018, package.edition());
     assert!(package.autobins);
     assert!(m.lib.is_none());
 
@@ -72,9 +72,9 @@ fn autolib() {
     let m = Manifest::from_path("tests/autolib/Cargo.toml").expect("load autolib");
     let package = m.package();
     assert_eq!("auto-lib", package.name);
-    assert_eq!("SOMETHING", package.readme.as_ref().unwrap());
+    assert_eq!("SOMETHING", package.readme().as_ref().unwrap());
     assert_eq!(false, package.publish);
-    assert_eq!(cargo_toml::Edition::E2015, package.edition);
+    assert_eq!(cargo_toml::Edition::E2015, package.edition());
     assert!(package.autobins);
     assert!(!package.autoexamples);
     let lib = m.lib.unwrap();

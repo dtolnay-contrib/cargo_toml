@@ -205,7 +205,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 self.lib = Some(Product {
                     name: Some(package.name.replace('-', "_")),
                     path: Some("src/lib.rs".to_string()),
-                    edition: package.edition,
+                    edition: package.edition(),
                     crate_type: vec!["rlib".to_string()],
                     ..old_lib
                 })
@@ -227,7 +227,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                         Product {
                             name: Some(name.clone()),
                             path: Some(rel_path),
-                            edition: package.edition,
+                            edition: package.edition(),
                             ..Product::default()
                         }
                     };
@@ -265,7 +265,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
                 package.build = Some(OptionalFile::Path("build.rs".into()));
             }
-            if matches!(package.readme, OptionalFile::Flag(true)) {
+            if matches!(package.readme(), OptionalFile::Flag(true)) {
                 let files = fs.file_names_in(".").ok();
                 if let Some(name) = files.as_ref().and_then(|dir| {
                     dir.get("README.md")
@@ -320,7 +320,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.to_string()),
                                     path: Some(rel_path),
-                                    edition: package.edition,
+                                    edition: package.edition(),
                                     ..Product::default()
                                 }
                             };
@@ -337,7 +337,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.into()),
                                     path: Some(rel_path),
-                                    edition: package.edition,
+                                    edition: package.edition(),
                                     ..Product::default()
                                 }
                             };
@@ -815,43 +815,66 @@ pub struct Package<Metadata = Value> {
     pub name: String,
 
     #[serde(default)]
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub edition: Edition,
 
     /// MSRV 1.x (beware: does not require semver formatting)
     #[serde(default)]
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub rust_version: Option<String>,
 
-    #[deprecated(note = "use `version()` method instead")]
     /// e.g. "1.9.0"
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub version: String,
 
     #[serde(default)]
     pub build: Option<OptionalFile>,
 
     pub workspace: Option<String>,
+
     #[serde(default)]
     /// e.g. ["Author <e@mail>", "etc"] Deprecated.
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub authors: Vec<String>,
+
     pub links: Option<String>,
+
     /// A short blurb about the package. This is not rendered in any format when
     /// uploaded to crates.io (aka this is not markdown).
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub description: Option<String>,
+
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub homepage: Option<String>,
+
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub documentation: Option<String>,
+
     /// This points to a file under the package root (relative to this `Cargo.toml`).
     /// implied if README.md, README.txt or README exists.
     #[serde(default, skip_serializing_if = "OptionalFile::is_default")]
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub readme: OptionalFile,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub keywords: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+
     /// This is a list of up to five categories where this crate would fit.
     /// e.g. ["command-line-utilities", "development-tools::cargo-plugins"]
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub categories: Vec<String>,
+
     /// e.g. "MIT"
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub license: Option<String>,
+
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub license_file: Option<String>,
+
+    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
     pub repository: Option<String>,
 
     /// The default binary to run by cargo run.
@@ -859,12 +882,16 @@ pub struct Package<Metadata = Value> {
 
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobins: bool,
+
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autoexamples: bool,
+
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autotests: bool,
+
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobenches: bool,
+
     #[serde(default, skip_serializing_if = "Publish::is_default")]
     pub publish: Publish,
 
@@ -874,9 +901,9 @@ pub struct Package<Metadata = Value> {
     pub metadata: Option<Metadata>,
 }
 
+#[allow(deprecated)]
 impl<Metadata> Package<Metadata> {
     /// Prefer creating it by parsing `Manifest` instead
-    #[allow(deprecated)]
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -907,10 +934,136 @@ impl<Metadata> Package<Metadata> {
         }
     }
 
-    /// Panics if the version is not available (e.g. inherited from workspace which hasn't been loaded)
-    #[allow(deprecated)]
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn authors(&self) -> &[String] {
+        &self.authors
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn categories(&self) -> &[String] {
+        &self.categories
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn categories_mut(&mut self) -> &mut Vec<String> {
+        &mut self.categories
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    #[inline]
+    pub fn set_description(&mut self, description: Option<String>) {
+        self.description = description;
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn documentation(&self) -> Option<&str> {
+        self.documentation.as_deref()
+    }
+
+    #[inline]
+    pub fn set_documentation(&mut self, documentation: Option<String>) {
+        self.documentation = documentation;
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn edition(&self) -> Edition {
+        self.edition
+    }
+
+    // /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    // #[inline]
+    // pub fn exclude(&self) -> Option<&str> {
+    //     self.exclude.as_deref()
+    // }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn homepage(&self) -> Option<&str> {
+        self.homepage.as_deref()
+    }
+
+    #[inline]
+    pub fn set_homepage(&mut self, homepage: Option<String>) {
+        self.homepage = homepage;
+    }
+
+    // /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    // #[inline]
+    // pub fn include(&self) -> Option<&str> {
+    //     self.include.as_deref()
+    // }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn keywords(&self) -> &[String] {
+        &self.keywords
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn license(&self) -> Option<&str> {
+        self.license.as_deref()
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn license_file(&self) -> Option<&str> {
+        self.license_file.as_deref()
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn publish(&self) -> &Publish {
+        &self.publish
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn readme(&self) -> &OptionalFile {
+        &self.readme
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn repository(&self) -> Option<&str> {
+        self.repository.as_deref()
+    }
+
+    #[inline]
+    pub fn set_repository(&mut self, repository: Option<String>) {
+        self.repository = repository;
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
+    pub fn rust_version(&self) -> Option<&str> {
+        self.rust_version.as_deref()
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[inline]
     pub fn version(&self) -> &str {
         &self.version
+    }
+
+    #[inline]
+    pub fn links(&self) -> Option<&str> {
+        self.links.as_deref()
+    }
+
+    #[inline]
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
 

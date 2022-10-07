@@ -19,8 +19,10 @@ pub type PatchSet = BTreeMap<String, DepsSet>;
 
 mod afs;
 mod error;
+mod inheritable;
 pub use crate::afs::*;
 pub use crate::error::Error;
+pub use crate::inheritable::Inheritable;
 
 /// The top-level `Cargo.toml` structure
 ///
@@ -699,6 +701,7 @@ impl Dependency {
     }
 
     #[inline]
+    #[track_caller]
     pub fn req(&self) -> &str {
         match *self {
             Dependency::Simple(ref v) => v,
@@ -745,6 +748,7 @@ impl Dependency {
 
     // `true` if it's an usual crates.io dependency,
     // `false` if git/path/alternative registry
+    #[track_caller]
     pub fn is_crates_io(&self) -> bool {
         match *self {
             Dependency::Simple(_) => true,
@@ -815,17 +819,14 @@ pub struct Package<Metadata = Value> {
     pub name: String,
 
     #[serde(default)]
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub edition: Edition,
+    pub edition: Inheritable<Edition>,
 
     /// MSRV 1.x (beware: does not require semver formatting)
     #[serde(default)]
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub rust_version: Option<String>,
+    pub rust_version: Option<Inheritable<String>>,
 
     /// e.g. "1.9.0"
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub version: String,
+    pub version: Inheritable<String>,
 
     #[serde(default)]
     pub build: Option<OptionalFile>,
@@ -834,48 +835,44 @@ pub struct Package<Metadata = Value> {
 
     #[serde(default)]
     /// e.g. ["Author <e@mail>", "etc"] Deprecated.
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub authors: Vec<String>,
+    #[serde(skip_serializing_if = "Inheritable::is_empty")]
+    pub authors: Inheritable<Vec<String>>,
 
     pub links: Option<String>,
 
     /// A short blurb about the package. This is not rendered in any format when
     /// uploaded to crates.io (aka this is not markdown).
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub description: Option<String>,
+    pub description: Option<Inheritable<String>>,
 
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub homepage: Option<String>,
+    pub homepage: Option<Inheritable<String>>,
 
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub documentation: Option<String>,
+    pub documentation: Option<Inheritable<String>>,
 
     /// This points to a file under the package root (relative to this `Cargo.toml`).
     /// implied if README.md, README.txt or README exists.
-    #[serde(default, skip_serializing_if = "OptionalFile::is_default")]
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub readme: OptionalFile,
+    #[serde(default, skip_serializing_if = "Inheritable::is_default")]
+    pub readme: Inheritable<OptionalFile>,
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub keywords: Vec<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    pub keywords: Inheritable<Vec<String>>,
 
+    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     /// This is a list of up to five categories where this crate would fit.
     /// e.g. ["command-line-utilities", "development-tools::cargo-plugins"]
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub categories: Vec<String>,
+    pub categories: Inheritable<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    pub exclude: Inheritable<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    pub include: Inheritable<Vec<String>>,
 
     /// e.g. "MIT"
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub license: Option<String>,
+    pub license: Option<Inheritable<String>>,
 
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub license_file: Option<String>,
+    pub license_file: Option<Inheritable<String>>,
 
-    #[deprecated(note = "workspace inheritance support is going to change the field. Use the getter method instead")]
-    pub repository: Option<String>,
+    pub repository: Option<Inheritable<String>>,
 
     /// The default binary to run by cargo run.
     pub default_run: Option<String>,
@@ -907,8 +904,8 @@ impl<Metadata> Package<Metadata> {
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            version: version.into(),
-            edition: Edition::E2021,
+            version: Inheritable::Set(version.into()),
+            edition: Inheritable::Set(Edition::E2021),
             rust_version: None,
             build: None,
             workspace: None,
@@ -917,9 +914,11 @@ impl<Metadata> Package<Metadata> {
             description: None,
             homepage: None,
             documentation: None,
-            readme: OptionalFile::Flag(true),
+            readme: Inheritable::Set(OptionalFile::Flag(true)),
             keywords: Default::default(),
             categories: Default::default(),
+            exclude: Default::default(),
+            include: Default::default(),
             license: None,
             license_file: None,
             repository: None,
@@ -935,125 +934,148 @@ impl<Metadata> Package<Metadata> {
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn authors(&self) -> &[String] {
-        &self.authors
+        &self.authors.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn categories(&self) -> &[String] {
-        &self.categories
+        &self.categories.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn categories_mut(&mut self) -> &mut Vec<String> {
-        &mut self.categories
+        self.categories.as_mut().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn description(&self) -> Option<&str> {
-        self.description.as_deref()
+        Some(&self.description.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
     pub fn set_description(&mut self, description: Option<String>) {
-        self.description = description;
+        self.description = description.map(Inheritable::Set);
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn documentation(&self) -> Option<&str> {
-        self.documentation.as_deref()
+        Some(&self.documentation.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
     pub fn set_documentation(&mut self, documentation: Option<String>) {
-        self.documentation = documentation;
+        self.documentation = documentation.map(Inheritable::Set);
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn edition(&self) -> Edition {
-        self.edition
+        self.edition.unwrap()
     }
 
-    // /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
-    // #[inline]
-    // pub fn exclude(&self) -> Option<&str> {
-    //     self.exclude.as_deref()
-    // }
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
+    #[inline]
+    pub fn exclude(&self) -> &[String] {
+        &self.exclude.as_ref().unwrap()
+    }
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
+    #[inline]
+    pub fn include(&self) -> &[String] {
+        &self.include.as_ref().unwrap()
+    }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn homepage(&self) -> Option<&str> {
-        self.homepage.as_deref()
+        Some(&self.homepage.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
     pub fn set_homepage(&mut self, homepage: Option<String>) {
-        self.homepage = homepage;
+        self.homepage = homepage.map(Inheritable::Set);
     }
 
     // /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    // #[track_caller]
     // #[inline]
     // pub fn include(&self) -> Option<&str> {
-    //     self.include.as_deref()
+    //     self.include.as_ref()
     // }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn keywords(&self) -> &[String] {
-        &self.keywords
+        &self.keywords.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn license(&self) -> Option<&str> {
-        self.license.as_deref()
+        Some(&self.license.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn license_file(&self) -> Option<&str> {
-        self.license_file.as_deref()
+        Some(&self.license_file.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn publish(&self) -> &Publish {
         &self.publish
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn readme(&self) -> &OptionalFile {
-        &self.readme
+        &self.readme.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn repository(&self) -> Option<&str> {
-        self.repository.as_deref()
+        Some(&self.repository.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
     pub fn set_repository(&mut self, repository: Option<String>) {
-        self.repository = repository;
+        self.repository = repository.map(Inheritable::Set);
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn rust_version(&self) -> Option<&str> {
-        self.rust_version.as_deref()
+        Some(&self.rust_version.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    #[track_caller]
     #[inline]
     pub fn version(&self) -> &str {
-        &self.version
+        &self.version.as_ref().unwrap()
     }
 
     #[inline]

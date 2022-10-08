@@ -27,7 +27,7 @@ fn opt_level() {
     let package = m.package();
     assert_eq!("byteorder", package.name);
     assert_eq!(3, m.profile.bench.as_ref().unwrap().opt_level.as_ref().unwrap().as_integer().unwrap());
-    assert_eq!(false, m.lib.as_ref().unwrap().bench);
+    assert!(!m.lib.as_ref().unwrap().bench);
     assert_eq!(cargo_toml::Edition::E2015, package.edition());
     assert_eq!(1, m.patch.len());
     assert_eq!(Some(StripSetting::Symbols), m.profile.bench.as_ref().unwrap().strip);
@@ -131,7 +131,7 @@ fn proc_macro() {
     assert_eq!("foo", package.name);
     let lib = m.lib.as_ref().unwrap();
     assert!(lib.crate_type.is_empty());
-    assert_eq!(true, lib.proc_macro);
+    assert!(lib.proc_macro);
 
     let serialized = toml::to_string(&m).unwrap();
     assert!(!serialized.contains("crate-type"));
@@ -140,7 +140,7 @@ fn proc_macro() {
     let m = Manifest::from_slice(serialized.as_bytes()).unwrap();
     let lib = m.lib.as_ref().unwrap();
     assert!(lib.crate_type.is_empty());
-    assert_eq!(true, lib.proc_macro);
+    assert!(lib.proc_macro);
 
     // The "proc-macro" field can also be spelled "proc_macro"
     let manifest = br#"[project]
@@ -152,7 +152,7 @@ fn proc_macro() {
     let m = Manifest::from_slice(manifest).unwrap();
     let lib = m.lib.as_ref().unwrap();
     assert!(lib.crate_type.is_empty());
-    assert_eq!(true, lib.proc_macro);
+    assert!(lib.proc_macro);
 }
 
 #[test]

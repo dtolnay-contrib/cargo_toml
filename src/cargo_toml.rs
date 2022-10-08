@@ -937,14 +937,14 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn authors(&self) -> &[String] {
-        &self.authors.as_ref().unwrap()
+        self.authors.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn categories(&self) -> &[String] {
-        &self.categories.as_ref().unwrap()
+        self.categories.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
@@ -958,7 +958,7 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn description(&self) -> Option<&str> {
-        Some(&self.description.as_ref()?.as_ref().unwrap())
+        Some(self.description.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
@@ -970,7 +970,7 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn documentation(&self) -> Option<&str> {
-        Some(&self.documentation.as_ref()?.as_ref().unwrap())
+        Some(self.documentation.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
@@ -989,20 +989,20 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn exclude(&self) -> &[String] {
-        &self.exclude.as_ref().unwrap()
+        self.exclude.as_ref().unwrap()
     }
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn include(&self) -> &[String] {
-        &self.include.as_ref().unwrap()
+        self.include.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn homepage(&self) -> Option<&str> {
-        Some(&self.homepage.as_ref()?.as_ref().unwrap())
+        Some(self.homepage.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
@@ -1021,21 +1021,21 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn keywords(&self) -> &[String] {
-        &self.keywords.as_ref().unwrap()
+        self.keywords.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn license(&self) -> Option<&str> {
-        Some(&self.license.as_ref()?.as_ref().unwrap())
+        Some(self.license.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn license_file(&self) -> Option<&str> {
-        Some(&self.license_file.as_ref()?.as_ref().unwrap())
+        Some(self.license_file.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
@@ -1049,14 +1049,14 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn readme(&self) -> &OptionalFile {
-        &self.readme.as_ref().unwrap()
+        self.readme.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn repository(&self) -> Option<&str> {
-        Some(&self.repository.as_ref()?.as_ref().unwrap())
+        Some(self.repository.as_ref()?.as_ref().unwrap())
     }
 
     #[inline]
@@ -1068,14 +1068,14 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn rust_version(&self) -> Option<&str> {
-        Some(&self.rust_version.as_ref()?.as_ref().unwrap())
+        Some(self.rust_version.as_ref()?.as_ref().unwrap())
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
     pub fn version(&self) -> &str {
-        &self.version.as_ref().unwrap()
+        self.version.as_ref().unwrap()
     }
 
     #[inline]

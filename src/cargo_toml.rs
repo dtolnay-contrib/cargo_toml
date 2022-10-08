@@ -189,93 +189,99 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         self.complete_from_abstract_filesystem_inner(&fs)
     }
 
+    #[track_caller]
     fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
-        if let Some(ref package) = self.package {
-            let src = match fs.file_names_in("src") {
-                Ok(src) => src,
-                Err(err) if err.kind() == io::ErrorKind::NotFound => Default::default(),
-                Err(err) => return Err(err.into()),
-            };
+        let package = match &self.package {
+            Some(p) => p,
+            None => return Ok(()),
+        };
 
-            if let Some(ref mut lib) = self.lib {
-                lib.required_features.clear(); // not applicable
-            }
+        let src = match fs.file_names_in("src") {
+            Ok(src) => src,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Default::default(),
+            Err(err) => return Err(err.into()),
+        };
 
-            let has_path = self.lib.as_ref().map_or(false, |l| l.path.is_some());
-            if !has_path && src.contains("lib.rs") {
-                let old_lib = self.lib.take().unwrap_or_default();
-                self.lib = Some(Product {
-                    name: Some(package.name.replace('-', "_")),
-                    path: Some("src/lib.rs".to_string()),
-                    edition: package.edition(),
-                    crate_type: vec!["rlib".to_string()],
-                    ..old_lib
-                })
-            }
-
-            if package.autobins {
-                let mut bin = take(&mut self.bin);
-                let (fully_overrided, mut partial_overrided) = self.autoset(&mut bin, "src/bin", fs);
-                self.bin = bin;
-
-                if src.contains("main.rs") && !fully_overrided.contains("src/main.rs") {
-                    let rel_path = "src/main.rs".to_string();
-                    let name = &package.name;
-
-                    let product = if let Some(mut product) = partial_overrided.remove(name) {
-                        product.path = Some(rel_path);
-                        product
-                    } else {
-                        Product {
-                            name: Some(name.clone()),
-                            path: Some(rel_path),
-                            edition: package.edition(),
-                            ..Product::default()
-                        }
-                    };
-                    self.bin.push(product);
-                }
-            }
-
-            Self::sort_products(&mut self.bin);
-
-            if package.autoexamples {
-                let mut example = take(&mut self.example);
-                self.autoset(&mut example, "examples", fs);
-                self.example = example;
-            }
-
-            Self::sort_products(&mut self.example);
-
-            if package.autotests {
-                let mut test = take(&mut self.test);
-                self.autoset(&mut test, "tests", fs);
-                self.test = test;
-            }
-
-            Self::sort_products(&mut self.test);
-
-            if package.autobenches {
-                let mut bench = take(&mut self.bench);
-                self.autoset(&mut bench, "benches", fs);
-                self.bench = bench;
-            }
-
-            Self::sort_products(&mut self.bench);
+        if let Some(ref mut lib) = self.lib {
+            lib.required_features.clear(); // not applicable
         }
-        if let Some(ref mut package) = self.package {
-            if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
-                package.build = Some(OptionalFile::Path("build.rs".into()));
+
+        let has_path = self.lib.as_ref().map_or(false, |l| l.path.is_some());
+        if !has_path && src.contains("lib.rs") {
+            let old_lib = self.lib.take().unwrap_or_default();
+            self.lib = Some(Product {
+                name: Some(package.name.replace('-', "_")),
+                path: Some("src/lib.rs".to_string()),
+                edition: *package.edition.get()?,
+                crate_type: vec!["rlib".to_string()],
+                ..old_lib
+            })
+        }
+
+        if package.autobins {
+            let mut bin = take(&mut self.bin);
+            let (fully_overrided, mut partial_overrided) = self.autoset(&mut bin, "src/bin", fs)?;
+            self.bin = bin;
+
+            if src.contains("main.rs") && !fully_overrided.contains("src/main.rs") {
+                let rel_path = "src/main.rs".to_string();
+                let name = &package.name;
+
+                let product = if let Some(mut product) = partial_overrided.remove(name) {
+                    product.path = Some(rel_path);
+                    product
+                } else {
+                    Product {
+                        name: Some(name.clone()),
+                        path: Some(rel_path),
+                        edition: *package.edition.get()?,
+                        ..Product::default()
+                    }
+                };
+                self.bin.push(product);
             }
-            if matches!(package.readme(), OptionalFile::Flag(true)) {
-                let files = fs.file_names_in(".").ok();
-                if let Some(name) = files.as_ref().and_then(|dir| {
-                    dir.get("README.md")
-                        .or_else(|| dir.get("README.txt"))
-                        .or_else(|| dir.get("README"))
-                }) {
-                    package.build = Some(OptionalFile::Path((**name).to_owned()));
-                }
+        }
+
+        Self::sort_products(&mut self.bin);
+
+        if package.autoexamples {
+            let mut example = take(&mut self.example);
+            self.autoset(&mut example, "examples", fs)?;
+            self.example = example;
+        }
+
+        Self::sort_products(&mut self.example);
+
+        if package.autotests {
+            let mut test = take(&mut self.test);
+            self.autoset(&mut test, "tests", fs)?;
+            self.test = test;
+        }
+
+        Self::sort_products(&mut self.test);
+
+        if package.autobenches {
+            let mut bench = take(&mut self.bench);
+            self.autoset(&mut bench, "benches", fs)?;
+            self.bench = bench;
+        }
+
+        Self::sort_products(&mut self.bench);
+
+        let package = self.package.as_mut().unwrap();
+
+        if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
+            package.build = Some(OptionalFile::Path("build.rs".into()));
+        }
+
+        if matches!(package.readme.get()?, OptionalFile::Flag(true)) {
+            let files = fs.file_names_in(".").ok();
+            if let Some(name) = files.as_ref().and_then(|dir| {
+                dir.get("README.md")
+                    .or_else(|| dir.get("README.txt"))
+                    .or_else(|| dir.get("README"))
+            }) {
+                package.build = Some(OptionalFile::Path((**name).to_owned()));
             }
         }
         Ok(())
@@ -287,7 +293,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         out: &mut Vec<Product>,
         dir: &str,
         fs: &dyn AbstractFilesystem,
-    ) -> (BTreeSet<String>, BTreeMap<String, Product>) {
+    ) -> Result<(BTreeSet<String>, BTreeMap<String, Product>), Error> {
         let fully_overrided: BTreeSet<_> = out.iter()
             .filter_map(|product| product.path.clone())
             .collect();
@@ -322,7 +328,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.to_string()),
                                     path: Some(rel_path),
-                                    edition: package.edition(),
+                                    edition: *package.edition.get()?,
                                     ..Product::default()
                                 }
                             };
@@ -339,7 +345,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.into()),
                                     path: Some(rel_path),
-                                    edition: package.edition(),
+                                    edition: *package.edition.get()?,
                                     ..Product::default()
                                 }
                             };
@@ -349,7 +355,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 }
             }
         }
-        (fully_overrided, partial_overrided)
+        Ok((fully_overrided, partial_overrided))
     }
 
     /// ensure bins are deterministic

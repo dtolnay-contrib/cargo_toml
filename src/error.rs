@@ -6,6 +6,7 @@ use std::{fmt, io};
 pub enum Error {
     Parse(toml::de::Error),
     Io(io::Error),
+    InheritedUnknownValue,
     Other(&'static str),
 }
 
@@ -14,7 +15,7 @@ impl StdErr for Error {
         match *self {
             Error::Parse(ref err) => Some(err),
             Error::Io(ref err) => Some(err),
-            Error::Other(_) => None,
+            Error::Other(_) | Error::InheritedUnknownValue => None,
         }
     }
 }
@@ -25,6 +26,7 @@ impl fmt::Display for Error {
             Error::Parse(ref err) => err.fmt(f),
             Error::Io(ref err) => err.fmt(f),
             Error::Other(msg) => f.write_str(msg),
+            Error::InheritedUnknownValue => f.write_str("value from workspace hasn't been set"),
         }
     }
 }
@@ -35,6 +37,7 @@ impl Clone for Error {
             Error::Parse(ref err) => Error::Parse(err.clone()),
             Error::Io(ref err) => Error::Io(io::Error::new(err.kind(), err.to_string())),
             Error::Other(msg) => Error::Other(msg),
+            Error::InheritedUnknownValue => Error::InheritedUnknownValue,
         }
     }
 }

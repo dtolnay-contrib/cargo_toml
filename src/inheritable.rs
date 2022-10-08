@@ -1,4 +1,5 @@
 use crate::OptionalFile;
+use crate::Error;
 use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -16,10 +17,10 @@ impl<T> Inheritable<T> {
         }
     }
 
-    pub fn get(&self) -> Option<&T> {
+    pub fn get(&self) -> Result<&T, Error> {
         match self {
-            Self::Set(t) => Some(t),
-            Self::Inherited{..} => None,
+            Self::Set(t) => Ok(t),
+            Self::Inherited{..} => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -30,10 +31,10 @@ impl<T> Inheritable<T> {
         }
     }
 
-    pub fn get_mut(&mut self) -> Option<&mut T> {
+    pub fn get_mut(&mut self) -> Result<&mut T, Error> {
         match self {
-            Self::Set(t) => Some(t),
-            Self::Inherited{..} => None,
+            Self::Set(t) => Ok(t),
+            Self::Inherited{..} => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -42,6 +43,12 @@ impl<T> Inheritable<T> {
         match self {
             Self::Set(t) => t,
             Self::Inherited{..} => panic!("inherited workspace value"),
+        }
+    }
+
+    pub fn inherit(&mut self, other: &T) where T: Clone {
+        if let Self::Inherited{..} = self {
+            *self = Self::Set(other.clone())
         }
     }
 }

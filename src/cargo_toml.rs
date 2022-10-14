@@ -232,7 +232,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
     /// yourself, and then call `inherit_workspace` with it.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
-        let manifest_dir = path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
+        let manifest_dir = path.parent().ok_or(Error::Other("bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir))
     }
 
@@ -259,7 +259,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         for (key, dep) in &mut self.dependencies {
             if let Dependency::Inherited(overrides) = dep {
                 let template = workspace_manifest.dependencies.get(key)
-                    .ok_or(Error::InheritedUnknownValue)?;
+                    .ok_or_else(|| Error::WorkspaceIntegrity(format!("workspace dependencies are missing `{key}`")))?;
                 let mut overrides = overrides.clone();
                 *dep = template.clone();
                 if overrides.optional {
@@ -347,7 +347,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         if okay {
             Ok(())
         } else {
-            Err(Error::InheritedUnknownValue)
+            Err(Error::WorkspaceIntegrity(format!("not all fields of `{}` have been present in workspace.package", package.name())))
         }
     }
 

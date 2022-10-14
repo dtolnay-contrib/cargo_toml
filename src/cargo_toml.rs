@@ -256,20 +256,9 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
     /// Used as a base for `readme` and `license-file`.
     pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
-        for (key, dep) in &mut self.dependencies {
-            if let Dependency::Inherited(overrides) = dep {
-                let template = workspace_manifest.dependencies.get(key)
-                    .ok_or_else(|| Error::WorkspaceIntegrity(format!("workspace dependencies are missing `{key}`")))?;
-                let mut overrides = overrides.clone();
-                *dep = template.clone();
-                if overrides.optional {
-                    dep.detail_mut().optional = true;
-                }
-                if !overrides.features.is_empty() {
-                    dep.detail_mut().features.append(&mut overrides.features);
-                }
-            }
-        }
+        inherit_dependencies(&mut self.dependencies, workspace_manifest)?;
+        inherit_dependencies(&mut self.build_dependencies, workspace_manifest)?;
+        inherit_dependencies(&mut self.dev_dependencies, workspace_manifest)?;
 
         let package = match &mut self.package {
             Some(p) => p,
@@ -533,6 +522,24 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     pub fn package(&self) -> &Package<Metadata> {
         self.package.as_ref().expect("not a package")
     }
+}
+
+fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace_manifest: &Manifest<Ignored>) -> Result<(), Error> {
+    for (key, dep) in deps_to_inherit {
+        if let Dependency::Inherited(overrides) = dep {
+            let template = workspace_manifest.dependencies.get(key)
+                .ok_or_else(|| Error::WorkspaceIntegrity(format!("workspace dependencies are missing `{key}`")))?;
+            let mut overrides = overrides.clone();
+            *dep = template.clone();
+            if overrides.optional {
+                dep.detail_mut().optional = true;
+            }
+            if !overrides.features.is_empty() {
+                dep.detail_mut().features.append(&mut overrides.features);
+            }
+        }
+    }
+    Ok(())
 }
 
 impl<Metadata: Default> Default for Manifest<Metadata> {

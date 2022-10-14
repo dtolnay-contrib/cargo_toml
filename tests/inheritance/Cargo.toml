@@ -4,6 +4,6 @@ package.readme = "ws-path/readme"
 package.exclude = ["ws-exclude"]
 package.license-file = "ws-lic"
 
-[dependencies]
+[workspace.dependencies]
 testdep = "1.4"
 otherdep = { version = "3", features = ["foo"] }

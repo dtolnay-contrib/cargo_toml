@@ -180,7 +180,7 @@ fn serialize_virtual_manifest() {
 #[test]
 fn inherit() {
     let ws = Manifest::from_slice(&read("tests/inheritance/Cargo.toml").unwrap()).unwrap();
-    assert_eq!(2, ws.dependencies.len());
+    assert_eq!(2, ws.workspace.as_ref().unwrap().dependencies.len());
     let mut m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
     assert_eq!(3, m.dependencies.len());
     m.inherit_workspace(&ws, Path::new("root")).unwrap();

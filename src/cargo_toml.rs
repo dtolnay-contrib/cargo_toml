@@ -527,7 +527,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace_manifest: &Manifest<Ignored>) -> Result<(), Error> {
     for (key, dep) in deps_to_inherit {
         if let Dependency::Inherited(overrides) = dep {
-            let template = workspace_manifest.dependencies.get(key)
+            let template = workspace_manifest.workspace.as_ref().and_then(|ws| ws.dependencies.get(key))
                 .ok_or_else(|| Error::WorkspaceIntegrity(format!("workspace dependencies are missing `{key}`")))?;
             let mut overrides = overrides.clone();
             *dep = template.clone();

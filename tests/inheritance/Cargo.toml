@@ -1,5 +1,8 @@
 [workspace]
 members = ["hi"]
+package.readme = "ws-path/readme"
+package.exclude = ["ws-exclude"]
+package.license-file = "ws-lic"
 
 [dependencies]
 testdep = "1.4"

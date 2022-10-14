@@ -1,3 +1,4 @@
+use std::path::Path;
 use cargo_toml::{Manifest, StripSetting};
 use std::fs::read;
 
@@ -72,8 +73,8 @@ fn autolib() {
     let m = Manifest::from_path("tests/autolib/Cargo.toml").expect("load autolib");
     let package = m.package();
     assert_eq!("auto-lib", package.name);
-    assert_eq!("SOMETHING", package.readme().as_ref().unwrap());
-    assert_eq!(false, package.publish);
+    assert_eq!(Path::new("SOMETHING"), package.readme().as_path().unwrap());
+    assert_eq!(false, *package.publish.as_ref().unwrap());
     assert_eq!(cargo_toml::Edition::E2015, package.edition());
     assert!(package.autobins);
     assert!(!package.autoexamples);
@@ -178,8 +179,13 @@ fn serialize_virtual_manifest() {
 
 #[test]
 fn inherit() {
-    let m = Manifest::from_slice(&read("tests/inheritance/Cargo.toml").unwrap()).unwrap();
-    assert_eq!(2, m.dependencies.len());
-    let m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
+    let ws = Manifest::from_slice(&read("tests/inheritance/Cargo.toml").unwrap()).unwrap();
+    assert_eq!(2, ws.dependencies.len());
+    let mut m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
     assert_eq!(3, m.dependencies.len());
+    m.inherit_workspace(&ws, Path::new("root")).unwrap();
+
+    assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
+    assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
+    assert_eq!(Path::new("root/ws-lic"), m.package().license_file().unwrap());
 }

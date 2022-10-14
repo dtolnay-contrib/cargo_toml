@@ -1,6 +1,9 @@
 [package]
 name = "hi"
 version = "1.0.0"
+readme.workspace = true
+license-file.workspace = true
+exclude.workspace = true
 
 [dependencies]
 testdep.workspace = true

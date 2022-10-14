@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::mem::take;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 pub use toml::Value;
 
@@ -78,6 +78,10 @@ pub struct Workspace<Metadata = Value> {
     #[serde(default)]
     pub members: Vec<String>,
 
+    /// Template for inheritance
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package: Option<PackageTemplate>,
+
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub default_members: Vec<String>,
 
@@ -92,6 +96,58 @@ pub struct Workspace<Metadata = Value> {
 
     #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct PackageTemplate {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authors: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub categories: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub documentation: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edition: Option<Edition>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exclude: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub homepage: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub include: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keywords: Option<Vec<String>>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_file: Option<PathBuf>,
+
+    #[serde(default, skip_serializing_if = "Publish::is_default")]
+    pub publish: Publish,
+
+    #[serde(default, skip_serializing_if = "OptionalFile::is_default")]
+    pub readme: OptionalFile,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rust_version: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -172,6 +228,9 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// which are inferred based on files on disk.
     ///
     /// This scans the disk to make the data in the manifest as complete as possible.
+    ///
+    /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
+    /// yourself, and then call `inherit_workspace` with it.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
         let manifest_dir = path.parent().ok_or_else(|| io::Error::new(io::ErrorKind::Other, "bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir))
@@ -182,11 +241,114 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// You can provide any implementation of directory scan, which doesn't have to
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
+    ///
+    /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
+    /// yourself, and then call `inherit_workspace` with it.
     pub fn complete_from_abstract_filesystem(
         &mut self,
         fs: impl AbstractFilesystem,
     ) -> Result<(), Error> {
         self.complete_from_abstract_filesystem_inner(&fs)
+    }
+
+    /// Copy workspace-inheritable properties from the `workspace_manifest`.
+    ///
+    /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
+    /// Used as a base for `readme` and `license-file`.
+    pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
+        for (key, dep) in &mut self.dependencies {
+            if let Dependency::Inherited(overrides) = dep {
+                let template = workspace_manifest.dependencies.get(key)
+                    .ok_or(Error::InheritedUnknownValue)?;
+                let mut overrides = overrides.clone();
+                *dep = template.clone();
+                if overrides.optional {
+                    dep.detail_mut().optional = true;
+                }
+                if !overrides.features.is_empty() {
+                    dep.detail_mut().features.append(&mut overrides.features);
+                }
+            }
+        }
+
+        let package = match &mut self.package {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+        if let Some(ws) = workspace_manifest.workspace.as_ref().and_then(|w| w.package.as_ref()) {
+            fn maybe_inherit<T: Clone>(to: Option<&mut Inheritable<T>>, from: Option<&T>) {
+                if let Some(from) = from {
+                    if let Some(to) = to {
+                        to.inherit(from);
+                    }
+                }
+            }
+
+            fn inherit<T: Clone>(to: &mut Inheritable<T>, from: Option<&T>) {
+                if let Some(from) = from {
+                    to.inherit(from);
+                }
+            }
+
+            inherit(&mut package.authors, ws.authors.as_ref());
+            inherit(&mut package.categories, ws.categories.as_ref());
+            inherit(&mut package.edition, ws.edition.as_ref());
+            inherit(&mut package.exclude, ws.exclude.as_ref());
+            inherit(&mut package.include, ws.include.as_ref());
+            inherit(&mut package.keywords, ws.keywords.as_ref());
+            inherit(&mut package.version, ws.version.as_ref());
+            maybe_inherit(package.description.as_mut(), ws.description.as_ref());
+            maybe_inherit(package.documentation.as_mut(), ws.documentation.as_ref());
+            maybe_inherit(package.homepage.as_mut(), ws.homepage.as_ref());
+            maybe_inherit(package.license.as_mut(), ws.license.as_ref());
+            maybe_inherit(package.repository.as_mut(), ws.repository.as_ref());
+            maybe_inherit(package.rust_version.as_mut(), ws.rust_version.as_ref());
+            package.publish.inherit(&ws.publish);
+
+            let workspace_base_path = if workspace_base_path.file_name() == Some("Cargo.toml".as_ref()) {
+                workspace_base_path.parent().ok_or(Error::Other("bad path"))?
+            } else {
+                workspace_base_path
+            };
+
+            match (&mut package.readme, &ws.readme) {
+                (r @ Inheritable::Inherited { .. }, flag @ OptionalFile::Flag(_)) => {
+                    r.set(flag.clone())
+                },
+                (r @ Inheritable::Inherited { .. }, OptionalFile::Path(path)) => {
+                    r.set(OptionalFile::Path(workspace_base_path.join(path)))
+                },
+                _ => {},
+            }
+            match (package.license_file.as_mut(), ws.license_file.as_ref()) {
+                (Some(f), Some(ws)) => {
+                    f.set(workspace_base_path.join(ws))
+                },
+                _ => {},
+            }
+        }
+
+        let okay = package.authors.is_set() &&
+            package.categories.is_set() &&
+            package.edition.is_set() &&
+            package.exclude.is_set() &&
+            package.include.is_set() &&
+            package.keywords.is_set() &&
+            package.version.is_set() &&
+            package.description.as_ref().map_or(true, |v| v.is_set()) &&
+            package.documentation.as_ref().map_or(true, |v| v.is_set()) &&
+            package.homepage.as_ref().map_or(true, |v| v.is_set()) &&
+            package.license.as_ref().map_or(true, |v| v.is_set()) &&
+            package.license_file.as_ref().map_or(true, |v| v.is_set()) &&
+            package.repository.as_ref().map_or(true, |v| v.is_set()) &&
+            package.rust_version.as_ref().map_or(true, |v| v.is_set()) &&
+            package.publish.is_set() &&
+            package.readme.is_set();
+        if okay {
+            Ok(())
+        } else {
+            Err(Error::InheritedUnknownValue)
+        }
     }
 
     #[track_caller]
@@ -281,7 +443,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                     .or_else(|| dir.get("README.txt"))
                     .or_else(|| dir.get("README"))
             }) {
-                package.build = Some(OptionalFile::Path((**name).to_owned()));
+                package.build = Some(OptionalFile::Path(PathBuf::from(&**name)));
             }
         }
         Ok(())
@@ -315,7 +477,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         if let Some(ref package) = self.package {
             if let Ok(bins) = fs.file_names_in(dir) {
                 for name in bins {
-                    let rel_path = format!("{}/{}", dir, name);
+                    let rel_path = format!("{dir}/{name}");
 
                     if name.ends_with(".rs") {
                         if !fully_overrided.contains(&rel_path) {
@@ -360,7 +522,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
     /// ensure bins are deterministic
     fn sort_products(products: &mut [Product]) {
-        products.sort_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
+        products.sort_unstable_by(|a, b| a.name.cmp(&b.name).then(a.path.cmp(&b.path)));
     }
 
     /// Panics if it's not a package (only a workspace).
@@ -692,9 +854,11 @@ pub struct Target {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Dependency {
+    /// Version
     Simple(String),
+    /// Incomplete data
+    Inherited(InheritedDependencyDetail), // order is important for serde
     Detailed(DependencyDetail),
-    Inherited(InheritedDependencyDetail),
 }
 
 impl Dependency {
@@ -703,6 +867,25 @@ impl Dependency {
         match *self {
             Dependency::Detailed(ref d) => Some(d),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
+        }
+    }
+
+    /// Panics if inherited value is not available
+    #[inline]
+    pub fn detail_mut(&mut self) -> &mut DependencyDetail {
+        match self {
+            Dependency::Detailed(d) => d,
+            Dependency::Simple(ver) => {
+                *self = Dependency::Detailed(DependencyDetail {
+                    version: Some(ver.clone()),
+                    ..Default::default()
+                });
+                match self {
+                    Dependency::Detailed(d) => d,
+                    _ => unreachable!(),
+                }
+            },
+            Dependency::Inherited(_) => panic!("dependency not available due to workspace inheritance"),
         }
     }
 
@@ -828,15 +1011,16 @@ pub struct Package<Metadata = Value> {
     pub edition: Inheritable<Edition>,
 
     /// MSRV 1.x (beware: does not require semver formatting)
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rust_version: Option<Inheritable<String>>,
 
     /// e.g. "1.9.0"
     pub version: Inheritable<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<OptionalFile>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
 
     #[serde(default)]
@@ -844,14 +1028,18 @@ pub struct Package<Metadata = Value> {
     #[serde(skip_serializing_if = "Inheritable::is_empty")]
     pub authors: Inheritable<Vec<String>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub links: Option<String>,
 
     /// A short blurb about the package. This is not rendered in any format when
     /// uploaded to crates.io (aka this is not markdown).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<Inheritable<String>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<Inheritable<String>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub documentation: Option<Inheritable<String>>,
 
     /// This points to a file under the package root (relative to this `Cargo.toml`).
@@ -862,9 +1050,9 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub keywords: Inheritable<Vec<String>>,
 
-    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     /// This is a list of up to five categories where this crate would fit.
     /// e.g. ["command-line-utilities", "development-tools::cargo-plugins"]
+    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub categories: Inheritable<Vec<String>>,
 
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
@@ -874,13 +1062,17 @@ pub struct Package<Metadata = Value> {
     pub include: Inheritable<Vec<String>>,
 
     /// e.g. "MIT"
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license: Option<Inheritable<String>>,
 
-    pub license_file: Option<Inheritable<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub license_file: Option<Inheritable<PathBuf>>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository: Option<Inheritable<String>>,
 
     /// The default binary to run by cargo run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_run: Option<String>,
 
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
@@ -895,10 +1087,11 @@ pub struct Package<Metadata = Value> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobenches: bool,
 
-    #[serde(default, skip_serializing_if = "Publish::is_default")]
-    pub publish: Publish,
+    #[serde(default, skip_serializing_if = "Inheritable::is_default")]
+    pub publish: Inheritable<Publish>,
 
     /// "2" is the only useful value
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
     pub metadata: Option<Metadata>,
@@ -933,7 +1126,7 @@ impl<Metadata> Package<Metadata> {
             autoexamples: true,
             autotests: true,
             autobenches: true,
-            publish: Publish::Flag(true),
+            publish: Inheritable::Set(Publish::Flag(true)),
             resolver: None,
             metadata: None,
         }
@@ -1040,7 +1233,7 @@ impl<Metadata> Package<Metadata> {
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
-    pub fn license_file(&self) -> Option<&str> {
+    pub fn license_file(&self) -> Option<&Path> {
         Some(self.license_file.as_ref()?.as_ref().unwrap())
     }
 
@@ -1048,7 +1241,7 @@ impl<Metadata> Package<Metadata> {
     #[track_caller]
     #[inline]
     pub fn publish(&self) -> &Publish {
-        &self.publish
+        self.publish.as_ref().unwrap()
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
@@ -1108,7 +1301,7 @@ pub enum OptionalFile {
     /// Opt-in to default, or explicit opt-out
     Flag(bool),
     /// Explicit path
-    Path(String),
+    Path(PathBuf),
 }
 
 impl Default for OptionalFile {
@@ -1125,7 +1318,7 @@ impl OptionalFile {
     }
 
     #[inline]
-    pub fn as_ref(&self) -> Option<&str> {
+    pub fn as_path(&self) -> Option<&Path> {
         match self {
             Self::Path(p) => Some(p),
             _ => None,

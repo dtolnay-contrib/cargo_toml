@@ -1,4 +1,3 @@
-use crate::OptionalFile;
 use crate::Error;
 use serde::{Serialize, Deserialize};
 
@@ -17,11 +16,19 @@ impl<T> Inheritable<T> {
         }
     }
 
+    pub fn is_set(&self) -> bool {
+        matches!(self, Self::Set(_))
+    }
+
     pub fn get(&self) -> Result<&T, Error> {
         match self {
             Self::Set(t) => Ok(t),
             Self::Inherited{..} => Err(Error::InheritedUnknownValue),
         }
+    }
+
+    pub fn set(&mut self, val: T) {
+        *self = Self::Set(val)
     }
 
     pub fn as_mut(&mut self) -> Inheritable<&mut T> {
@@ -68,11 +75,11 @@ impl<T> Inheritable<Vec<T>> {
     }
 }
 
-impl Inheritable<OptionalFile> {
+impl<T: Default + PartialEq> Inheritable<T> {
     pub fn is_default(&self) -> bool {
         match self {
             Self::Inherited{..} => false,
-            Self::Set(v) => v.is_default(),
+            Self::Set(v) => T::default() == *v,
         }
     }
 }

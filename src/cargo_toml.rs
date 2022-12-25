@@ -215,7 +215,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
     /// Parse contents from `Cargo.toml` file on disk, with custom Serde-compatible metadata type.
     ///
-    /// Calls `complete_from_path`
+    /// Calls [`complete_from_path`]
     pub fn from_path_with_metadata(cargo_toml_path: impl AsRef<Path>) -> Result<Self, Error> {
         let cargo_toml_path = cargo_toml_path.as_ref();
         let cargo_toml_content = fs::read(cargo_toml_path)?;
@@ -870,7 +870,7 @@ pub enum Dependency {
 
 impl Dependency {
     #[inline]
-    pub fn detail(&self) -> Option<&DependencyDetail> {
+    #[must_use] pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
             Dependency::Detailed(ref d) => Some(d),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
@@ -898,7 +898,7 @@ impl Dependency {
 
     #[inline]
     #[track_caller]
-    pub fn req(&self) -> &str {
+    #[must_use] pub fn req(&self) -> &str {
         match *self {
             Dependency::Simple(ref v) => v,
             Dependency::Detailed(ref d) => d.version.as_deref().unwrap_or("*"),
@@ -907,7 +907,7 @@ impl Dependency {
     }
 
     #[inline]
-    pub fn req_features(&self) -> &[String] {
+    #[must_use] pub fn req_features(&self) -> &[String] {
         match *self {
             Dependency::Simple(_) => &[],
             Dependency::Detailed(ref d) => &d.features,
@@ -916,14 +916,14 @@ impl Dependency {
     }
 
     #[inline]
-    pub fn optional(&self) -> bool {
+    #[must_use] pub fn optional(&self) -> bool {
         self.detail().map_or(false, |d| d.optional)
     }
 
     // `Some` if it overrides the package name.
     // If `None`, use the dependency name as the package name.
     #[inline]
-    pub fn package(&self) -> Option<&str> {
+    #[must_use] pub fn package(&self) -> Option<&str> {
         match *self {
             Dependency::Detailed(ref d) => d.package.as_deref(),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
@@ -932,20 +932,20 @@ impl Dependency {
 
     // Git URL of this dependency, if any
     #[inline]
-    pub fn git(&self) -> Option<&str> {
+    #[must_use] pub fn git(&self) -> Option<&str> {
         self.detail()?.git.as_deref()
     }
 
     // Git URL of this dependency, if any
     #[inline]
-    pub fn git_rev(&self) -> Option<&str> {
+    #[must_use] pub fn git_rev(&self) -> Option<&str> {
         self.detail()?.rev.as_deref()
     }
 
     // `true` if it's an usual crates.io dependency,
     // `false` if git/path/alternative registry
     #[track_caller]
-    pub fn is_crates_io(&self) -> bool {
+    #[must_use] pub fn is_crates_io(&self) -> bool {
         match *self {
             Dependency::Simple(_) => true,
             Dependency::Detailed(ref d) => {
@@ -1325,7 +1325,7 @@ impl OptionalFile {
     }
 
     #[inline]
-    pub fn as_path(&self) -> Option<&Path> {
+    #[must_use] pub fn as_path(&self) -> Option<&Path> {
         match self {
             Self::Path(p) => Some(p),
             _ => None,
@@ -1333,7 +1333,7 @@ impl OptionalFile {
     }
 
     #[inline]
-    pub fn is_some(&self) -> bool {
+    #[must_use] pub fn is_some(&self) -> bool {
         matches!(self, Self::Flag(true) | Self::Path(_))
     }
 }
@@ -1418,7 +1418,7 @@ pub struct Badges {
     #[serde(default, deserialize_with = "ok_or_default")]
     pub gitlab: Option<Badge>,
 
-    /// Travis CI: `repository` in format "<user>/<project>" is required.
+    /// Travis CI: `repository` in format `"<user>/<project>"` is required.
     /// `branch` is optional; default is `master`
     #[serde(default, deserialize_with = "ok_or_default")]
     #[deprecated(note = "badges are deprecated, and travis is dead")]

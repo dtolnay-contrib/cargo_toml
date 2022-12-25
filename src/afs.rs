@@ -21,7 +21,7 @@ pub struct Filesystem<'a> {
 }
 
 impl<'a> Filesystem<'a> {
-    pub fn new(path: &'a Path) -> Self {
+    #[must_use] pub fn new(path: &'a Path) -> Self {
         Self { path }
     }
 }
@@ -30,7 +30,7 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
     fn file_names_in(&self, rel_path: &str) -> io::Result<HashSet<Box<str>>> {
         Ok(read_dir(self.path.join(rel_path))?.filter_map(|entry| {
             entry.ok().map(|e| {
-                e.file_name().to_string_lossy().to_string().into_boxed_str()
+                e.file_name().to_string_lossy().into_owned().into()
             })
         })
         .collect())

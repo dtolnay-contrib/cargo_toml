@@ -67,7 +67,7 @@ impl<T: Default> Default for Inheritable<T> {
 }
 
 impl<T> Inheritable<Vec<T>> {
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         match self {
             Self::Inherited{..} => false,
             Self::Set(v) => v.is_empty(),

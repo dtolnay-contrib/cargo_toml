@@ -229,8 +229,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// This scans the disk to make the data in the manifest as complete as possible.
     ///
-    /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
-    /// yourself, and then call `inherit_workspace` with it.
+    /// It supports workspace inheritance and will search for a root workspace.
     /// Use `complete_from_path_and_workspace` to provide the workspace explicitly.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
         let manifest_dir = path.parent().ok_or(Error::Other("bad path"))?;
@@ -241,6 +240,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// `workspace_manifest_and_path` is the root workspace manifest already parsed,
     /// and the path is the path to the root workspace's directory.
+    /// If it's `None`, the root workspace will be discovered automatically.
     pub fn complete_from_path_and_workspace<WorkspaceMetadataIgnored>(&mut self, package_manifest_path: &Path, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>) -> Result<(), Error> {
         let manifest_dir = package_manifest_path.parent().ok_or(Error::Other("bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir), workspace_manifest_and_path)
@@ -253,6 +253,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
     ///
     /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
+    /// If it's `None`, it will try to find a workspace if needed.
     pub fn complete_from_abstract_filesystem<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
     ) -> Result<(), Error> {
@@ -266,7 +267,11 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             self._inherit_workspace(Some(&ws), Path::new(""))?;
             self.workspace = Some(ws);
         } else if self.needs_workspace_inheritance() {
-            return Err(Error::WorkspaceIntegrity("This manifest requires workspace inheritance, but `inherit_workspace` hasn't been called yet".into()));
+            let (toml, base_path) = fs.read_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref()))
+                .map_err(|e| Error::Workspace(Box::new(e.into())))?;
+            let manifest = Manifest::from_slice(&toml)
+                .map_err(|e| Error::Workspace(Box::new(e)))?;
+            self._inherit_workspace(manifest.workspace.as_ref(), &base_path)?;
         }
         self.complete_from_abstract_filesystem_inner(&fs)
     }

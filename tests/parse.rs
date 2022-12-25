@@ -198,8 +198,25 @@ fn inherit() {
     assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
     assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
     assert_eq!(Path::new("root/ws-lic"), m.package().license_file().unwrap());
+}
+
+#[test]
+fn auto_inherit() {
+    let m = Manifest::from_path("tests/inheritance/hi/Cargo.toml").unwrap();
+    assert_eq!(3, m.dependencies.len());
 
     assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
-    assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
-    assert_eq!(Path::new("root/ws-lic"), m.package().license_file().unwrap());
+    assert_eq!(Path::new("tests/inheritance/ws-path/readme"), m.package().readme().as_path().unwrap());
+    assert_eq!(Path::new("tests/inheritance/ws-lic"), m.package().license_file().unwrap());
+
+    let m = Manifest::from_path(Path::new("tests/inheritance/hi/Cargo.toml").canonicalize().unwrap()).unwrap();
+    assert_eq!(3, m.dependencies.len());
+
+    assert!(m.package().readme().as_path().unwrap().to_string_lossy().contains("/tests/inheritance/ws-path/readme"));
+}
+
+#[test]
+fn auto_inherit2() {
+    let m = Manifest::from_path("tests/inheritance/with-dir/Cargo.toml").unwrap();
+    assert_eq!("1.0.0-lol", m.package().version());
 }

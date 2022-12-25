@@ -256,15 +256,19 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
     /// Used as a base for `readme` and `license-file`.
     pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
-        inherit_dependencies(&mut self.dependencies, workspace_manifest)?;
-        inherit_dependencies(&mut self.build_dependencies, workspace_manifest)?;
-        inherit_dependencies(&mut self.dev_dependencies, workspace_manifest)?;
+        self._inherit_workspace(workspace_manifest.workspace.as_ref(), workspace_base_path)
+    }
+
+    fn _inherit_workspace<Ignored>(&mut self, workspace: Option<&Workspace<Ignored>>, workspace_base_path: &Path) -> Result<(), Error> {
+        inherit_dependencies(&mut self.dependencies, workspace)?;
+        inherit_dependencies(&mut self.build_dependencies, workspace)?;
+        inherit_dependencies(&mut self.dev_dependencies, workspace)?;
 
         let package = match &mut self.package {
             Some(p) => p,
             None => return Ok(()),
         };
-        if let Some(ws) = workspace_manifest.workspace.as_ref().and_then(|w| w.package.as_ref()) {
+        if let Some(ws) = workspace.and_then(|w| w.package.as_ref()) {
             fn maybe_inherit<T: Clone>(to: Option<&mut Inheritable<T>>, from: Option<&T>) {
                 if let Some(from) = from {
                     if let Some(to) = to {
@@ -524,10 +528,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 }
 
-fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace_manifest: &Manifest<Ignored>) -> Result<(), Error> {
+fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace: Option<&Workspace<Ignored>>) -> Result<(), Error> {
     for (key, dep) in deps_to_inherit {
         if let Dependency::Inherited(overrides) = dep {
-            let template = workspace_manifest.workspace.as_ref().and_then(|ws| ws.dependencies.get(key))
+            let template = workspace.and_then(|ws| ws.dependencies.get(key))
                 .ok_or_else(|| Error::WorkspaceIntegrity(format!("workspace dependencies are missing `{key}`")))?;
             let mut overrides = overrides.clone();
             *dep = template.clone();

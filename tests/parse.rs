@@ -193,7 +193,11 @@ fn inherit() {
     assert_eq!(2, ws.workspace.as_ref().unwrap().dependencies.len());
     let mut m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
     assert_eq!(3, m.dependencies.len());
-    m.inherit_workspace(&ws, Path::new("root")).unwrap();
+    m.complete_from_path_and_workspace(Path::new("tests/inheritance/hi/Cargo.toml"), Some((&ws, Path::new("root")))).unwrap();
+
+    assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
+    assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
+    assert_eq!(Path::new("root/ws-lic"), m.package().license_file().unwrap());
 
     assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
     assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());

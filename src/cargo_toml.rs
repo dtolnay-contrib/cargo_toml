@@ -233,7 +233,16 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// yourself, and then call `inherit_workspace` with it.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
         let manifest_dir = path.parent().ok_or(Error::Other("bad path"))?;
-        self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir))
+        self.complete_from_abstract_filesystem_ws::<Value, _>(Filesystem::new(manifest_dir), None)
+    }
+
+    /// [`complete_from_path`], but allows passing workspace manifest explicitly.
+    ///
+    /// `workspace_manifest_and_path` is the root workspace manifest already parsed,
+    /// and the path is the path to the root workspace's directory.
+    pub fn complete_from_path_and_workspace<WorkspaceMetadataIgnored>(&mut self, package_manifest_path: &Path, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>) -> Result<(), Error> {
+        let manifest_dir = package_manifest_path.parent().ok_or(Error::Other("bad path"))?;
+        self.complete_from_abstract_filesystem_ws(Filesystem::new(manifest_dir), workspace_manifest_and_path)
     }
 
     /// `Cargo.toml` doesn't contain explicit information about `[lib]` and `[[bin]]`,
@@ -244,11 +253,37 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
     /// yourself, and then call `inherit_workspace` with it.
-    pub fn complete_from_abstract_filesystem(
-        &mut self,
-        fs: impl AbstractFilesystem,
+    pub fn complete_from_abstract_filesystem(&mut self, fs: impl AbstractFilesystem) -> Result<(), Error> {
+        self.complete_from_abstract_filesystem_ws::<Value, _>(fs, None)
+    }
+
+    /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
+    pub fn complete_from_abstract_filesystem_ws<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
+        &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
     ) -> Result<(), Error> {
+        if let Some((ws, mut ws_path)) = workspace_manifest_and_path {
+            if ws_path.ends_with("Cargo.toml") {
+                ws_path = ws_path.parent().ok_or(Error::Other("bad path"))?;
+            }
+            self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
+        } else if let Some(ws) = self.workspace.take() {
+            // Manifest may be both a workspace and a package
+            self._inherit_workspace(Some(&ws), Path::new(""))?;
+            self.workspace = Some(ws);
+        } else if self.needs_workspace_inheritance() {
+            return Err(Error::WorkspaceIntegrity("This manifest requires workspace inheritance, but `inherit_workspace` hasn't been called yet".into()));
+        }
         self.complete_from_abstract_filesystem_inner(&fs)
+    }
+
+    fn needs_workspace_inheritance(&self) -> bool {
+        self.package.as_ref().map_or(false, |p| p.needs_workspace_inheritance()) ||
+        self.dependencies.values()
+            .chain(self.build_dependencies.values())
+            .chain(self.dev_dependencies.values())
+            .any(|dep| {
+                matches!(dep, Dependency::Inherited(_))
+            })
     }
 
     /// Copy workspace-inheritable properties from the `workspace_manifest`.
@@ -321,37 +356,13 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             }
         }
 
-        let okay = package.authors.is_set() &&
-            package.categories.is_set() &&
-            package.edition.is_set() &&
-            package.exclude.is_set() &&
-            package.include.is_set() &&
-            package.keywords.is_set() &&
-            package.version.is_set() &&
-            package.description.as_ref().map_or(true, |v| v.is_set()) &&
-            package.documentation.as_ref().map_or(true, |v| v.is_set()) &&
-            package.homepage.as_ref().map_or(true, |v| v.is_set()) &&
-            package.license.as_ref().map_or(true, |v| v.is_set()) &&
-            package.license_file.as_ref().map_or(true, |v| v.is_set()) &&
-            package.repository.as_ref().map_or(true, |v| v.is_set()) &&
-            package.rust_version.as_ref().map_or(true, |v| v.is_set()) &&
-            package.publish.is_set() &&
-            package.readme.is_set();
-        if okay {
-            Ok(())
-        } else {
-            Err(Error::WorkspaceIntegrity(format!("not all fields of `{}` have been present in workspace.package", package.name())))
+        if package.needs_workspace_inheritance() {
+            return Err(Error::WorkspaceIntegrity(format!("not all fields of `{}` have been present in workspace.package", package.name())));
         }
+        Ok(())
     }
 
-    #[track_caller]
     fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
-        if let Some(ws) = self.workspace.take() {
-            // Manifest may be both a workspace and a package
-            self._inherit_workspace(Some(&ws), Path::new(""))?;
-            self.workspace = Some(ws);
-        }
-
         let package = match &self.package {
             Some(p) => p,
             None => return Ok(()),
@@ -1037,6 +1048,7 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<OptionalFile>,
 
+    /// Workspace this package is a member of (`None` if it's implicit)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<String>,
 
@@ -1226,13 +1238,6 @@ impl<Metadata> Package<Metadata> {
         self.homepage = homepage.map(Inheritable::Set);
     }
 
-    // /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
-    // #[track_caller]
-    // #[inline]
-    // pub fn include(&self) -> Option<&str> {
-    //     self.include.as_ref()
-    // }
-
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
@@ -1302,6 +1307,25 @@ impl<Metadata> Package<Metadata> {
     #[inline]
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    fn needs_workspace_inheritance(&self) -> bool {
+        !(self.authors.is_set() &&
+        self.categories.is_set() &&
+        self.edition.is_set() &&
+        self.exclude.is_set() &&
+        self.include.is_set() &&
+        self.keywords.is_set() &&
+        self.version.is_set() &&
+        self.description.as_ref().map_or(true, |v| v.is_set()) &&
+        self.documentation.as_ref().map_or(true, |v| v.is_set()) &&
+        self.homepage.as_ref().map_or(true, |v| v.is_set()) &&
+        self.license.as_ref().map_or(true, |v| v.is_set()) &&
+        self.license_file.as_ref().map_or(true, |v| v.is_set()) &&
+        self.repository.as_ref().map_or(true, |v| v.is_set()) &&
+        self.rust_version.as_ref().map_or(true, |v| v.is_set()) &&
+        self.publish.is_set() &&
+        self.readme.is_set())
     }
 }
 

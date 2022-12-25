@@ -216,7 +216,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// Parse contents from `Cargo.toml` file on disk, with custom Serde-compatible metadata type.
     ///
     /// Calls [`complete_from_path`]
-    pub fn from_path_with_metadata(cargo_toml_path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub fn from_path_with_metadata<P: AsRef<Path>>(cargo_toml_path: P) -> Result<Self, Error> {
         let cargo_toml_path = cargo_toml_path.as_ref();
         let cargo_toml_content = fs::read(cargo_toml_path)?;
         let mut manifest = Self::from_slice_with_metadata(&cargo_toml_content)?;
@@ -231,9 +231,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
     /// yourself, and then call `inherit_workspace` with it.
+    /// Use `complete_from_path_and_workspace` to provide the workspace explicitly.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
         let manifest_dir = path.parent().ok_or(Error::Other("bad path"))?;
-        self.complete_from_abstract_filesystem_ws::<Value, _>(Filesystem::new(manifest_dir), None)
+        self.complete_from_abstract_filesystem::<Value, _>(Filesystem::new(manifest_dir), None)
     }
 
     /// [`complete_from_path`], but allows passing workspace manifest explicitly.
@@ -242,7 +243,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// and the path is the path to the root workspace's directory.
     pub fn complete_from_path_and_workspace<WorkspaceMetadataIgnored>(&mut self, package_manifest_path: &Path, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>) -> Result<(), Error> {
         let manifest_dir = package_manifest_path.parent().ok_or(Error::Other("bad path"))?;
-        self.complete_from_abstract_filesystem_ws(Filesystem::new(manifest_dir), workspace_manifest_and_path)
+        self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir), workspace_manifest_and_path)
     }
 
     /// `Cargo.toml` doesn't contain explicit information about `[lib]` and `[[bin]]`,
@@ -251,14 +252,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// You can provide any implementation of directory scan, which doesn't have to
     /// be reading straight from disk (might scan a tarball or a git repo, for example).
     ///
-    /// Note: this doesn't support workspace inheritance yet. You need to get workspace's manifest
-    /// yourself, and then call `inherit_workspace` with it.
-    pub fn complete_from_abstract_filesystem(&mut self, fs: impl AbstractFilesystem) -> Result<(), Error> {
-        self.complete_from_abstract_filesystem_ws::<Value, _>(fs, None)
-    }
-
     /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
-    pub fn complete_from_abstract_filesystem_ws<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
+    pub fn complete_from_abstract_filesystem<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
     ) -> Result<(), Error> {
         if let Some((ws, mut ws_path)) = workspace_manifest_and_path {
@@ -290,6 +285,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
     /// Used as a base for `readme` and `license-file`.
+    #[deprecated(note = "this functionality has been merged into `complete_from_path_and_workspace` or `complete_from_abstract_filesystem`")]
     pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
         self._inherit_workspace(workspace_manifest.workspace.as_ref(), workspace_base_path)
     }
@@ -1123,6 +1119,7 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 }
 

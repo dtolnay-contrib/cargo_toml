@@ -346,6 +346,12 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
     #[track_caller]
     fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
+        if let Some(ws) = self.workspace.take() {
+            // Manifest may be both a workspace and a package
+            self._inherit_workspace(Some(&ws), Path::new(""))?;
+            self.workspace = Some(ws);
+        }
+
         let package = match &self.package {
             Some(p) => p,
             None => return Ok(()),

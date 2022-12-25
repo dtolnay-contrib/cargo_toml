@@ -1,0 +1,11 @@
+[workspace]
+
+[workspace.package]
+version = "1.0.0-lol"
+
+[package]
+version.workspace = true
+name = "testing"
+
+[lib]
+path = "../parse.rs"

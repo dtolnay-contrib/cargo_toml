@@ -164,6 +164,16 @@ fn serialize() {
 }
 
 #[test]
+fn self_inherit() {
+    let mut m = Manifest::from_slice(&read("tests/self-inherit/Cargo.toml").unwrap()).unwrap();
+    m.complete_from_path("tests/self-inherit/Cargo.toml".as_ref()).unwrap();
+    assert_eq!("1.0.0-lol", m.package().version());
+
+    let m = Manifest::from_path("tests/self-inherit/Cargo.toml").unwrap();
+    assert_eq!("1.0.0-lol", m.package().version());
+}
+
+#[test]
 fn serialize_virtual_manifest() {
     let manifest = br#"[workspace]
     members = [

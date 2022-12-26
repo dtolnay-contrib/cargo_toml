@@ -258,7 +258,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
     ) -> Result<(), Error> {
         if let Some((ws, mut ws_path)) = workspace_manifest_and_path {
-            if ws_path.ends_with("Cargo.toml") {
+            if ws_path.file_name() == Some("Cargo.toml".as_ref()) {
                 ws_path = ws_path.parent().ok_or(Error::Other("bad path"))?;
             }
             self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
@@ -305,56 +305,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             None => return Ok(()),
         };
         if let Some(ws) = workspace.and_then(|w| w.package.as_ref()) {
-            fn maybe_inherit<T: Clone>(to: Option<&mut Inheritable<T>>, from: Option<&T>) {
-                if let Some(from) = from {
-                    if let Some(to) = to {
-                        to.inherit(from);
-                    }
-                }
-            }
-
-            fn inherit<T: Clone>(to: &mut Inheritable<T>, from: Option<&T>) {
-                if let Some(from) = from {
-                    to.inherit(from);
-                }
-            }
-
-            inherit(&mut package.authors, ws.authors.as_ref());
-            inherit(&mut package.categories, ws.categories.as_ref());
-            inherit(&mut package.edition, ws.edition.as_ref());
-            inherit(&mut package.exclude, ws.exclude.as_ref());
-            inherit(&mut package.include, ws.include.as_ref());
-            inherit(&mut package.keywords, ws.keywords.as_ref());
-            inherit(&mut package.version, ws.version.as_ref());
-            maybe_inherit(package.description.as_mut(), ws.description.as_ref());
-            maybe_inherit(package.documentation.as_mut(), ws.documentation.as_ref());
-            maybe_inherit(package.homepage.as_mut(), ws.homepage.as_ref());
-            maybe_inherit(package.license.as_mut(), ws.license.as_ref());
-            maybe_inherit(package.repository.as_mut(), ws.repository.as_ref());
-            maybe_inherit(package.rust_version.as_mut(), ws.rust_version.as_ref());
-            package.publish.inherit(&ws.publish);
-
-            let workspace_base_path = if workspace_base_path.file_name() == Some("Cargo.toml".as_ref()) {
-                workspace_base_path.parent().ok_or(Error::Other("bad path"))?
-            } else {
-                workspace_base_path
-            };
-
-            match (&mut package.readme, &ws.readme) {
-                (r @ Inheritable::Inherited { .. }, flag @ OptionalFile::Flag(_)) => {
-                    r.set(flag.clone())
-                },
-                (r @ Inheritable::Inherited { .. }, OptionalFile::Path(path)) => {
-                    r.set(OptionalFile::Path(workspace_base_path.join(path)))
-                },
-                _ => {},
-            }
-            match (package.license_file.as_mut(), ws.license_file.as_ref()) {
-                (Some(f), Some(ws)) => {
-                    f.set(workspace_base_path.join(ws))
-                },
-                _ => {},
-            }
+            Self::inherit_package_properties(package, ws, workspace_base_path)?;
         }
 
         if package.needs_workspace_inheritance() {
@@ -362,6 +313,56 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         }
         Ok(())
     }
+
+    fn inherit_package_properties(package: &mut Package<Metadata>, ws: &PackageTemplate, workspace_base_path: &Path) -> Result<(), Error> {
+        fn maybe_inherit<T: Clone>(to: Option<&mut Inheritable<T>>, from: Option<&T>) {
+            if let Some(from) = from {
+                if let Some(to) = to {
+                    to.inherit(from);
+                }
+            }
+        }
+        fn inherit<T: Clone>(to: &mut Inheritable<T>, from: Option<&T>) {
+            if let Some(from) = from {
+                to.inherit(from);
+            }
+        }
+        inherit(&mut package.authors, ws.authors.as_ref());
+        inherit(&mut package.categories, ws.categories.as_ref());
+        inherit(&mut package.edition, ws.edition.as_ref());
+        inherit(&mut package.exclude, ws.exclude.as_ref());
+        inherit(&mut package.include, ws.include.as_ref());
+        inherit(&mut package.keywords, ws.keywords.as_ref());
+        inherit(&mut package.version, ws.version.as_ref());
+        maybe_inherit(package.description.as_mut(), ws.description.as_ref());
+        maybe_inherit(package.documentation.as_mut(), ws.documentation.as_ref());
+        maybe_inherit(package.homepage.as_mut(), ws.homepage.as_ref());
+        maybe_inherit(package.license.as_mut(), ws.license.as_ref());
+        maybe_inherit(package.repository.as_mut(), ws.repository.as_ref());
+        maybe_inherit(package.rust_version.as_mut(), ws.rust_version.as_ref());
+        package.publish.inherit(&ws.publish);
+        let workspace_base_path = if workspace_base_path.file_name() == Some("Cargo.toml".as_ref()) {
+            workspace_base_path.parent().ok_or(Error::Other("bad path"))?
+        } else {
+            workspace_base_path
+        };
+        match (&mut package.readme, &ws.readme) {
+            (r @ Inheritable::Inherited { .. }, flag @ OptionalFile::Flag(_)) => {
+                r.set(flag.clone())
+            },
+            (r @ Inheritable::Inherited { .. }, OptionalFile::Path(path)) => {
+                r.set(OptionalFile::Path(workspace_base_path.join(path)))
+            },
+            _ => {},
+        }
+        Ok(match (package.license_file.as_mut(), ws.license_file.as_ref()) {
+            (Some(f), Some(ws)) => {
+                f.set(workspace_base_path.join(ws))
+            },
+            _ => {},
+        })
+    }
+
 
     fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
         let package = match &self.package {

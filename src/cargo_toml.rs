@@ -33,22 +33,22 @@ pub use crate::inheritable::Inheritable;
 pub struct Manifest<Metadata = Value> {
     pub package: Option<Package<Metadata>>,
     pub workspace: Option<Workspace<Metadata>>,
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dev_dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub build_dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "TargetDepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "TargetDepsSet::is_empty")]
     pub target: TargetDepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "FeatureSet::is_empty")]
+    #[serde(default, skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
 
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     #[deprecated(note = "Cargo recommends patch instead")]
     pub replace: DepsSet,
 
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "PatchSet::is_empty")]
+    #[serde(default, skip_serializing_if = "PatchSet::is_empty")]
     pub patch: PatchSet,
 
     /// Note that due to autolibs feature this is not the complete list
@@ -94,7 +94,7 @@ pub struct Workspace<Metadata = Value> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
-    #[serde(default, serialize_with = "toml::ser::tables_last", skip_serializing_if = "DepsSet::is_empty")]
+    #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
 }
 
@@ -199,11 +199,12 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// It does not call `complete_from_path`, so may be missing implicit data.
     pub fn from_slice_with_metadata(cargo_toml_content: &[u8]) -> Result<Self, Error> {
-        let mut manifest: Self = toml::from_slice(cargo_toml_content)?;
+        let cargo_toml_content = std::str::from_utf8(cargo_toml_content).map_err(|_| Error::Other("utf8"))?;
+        let mut manifest: Self = toml::from_str(cargo_toml_content)?;
         if manifest.package.is_none() && manifest.workspace.is_none() {
             // Some old crates lack the `[package]` header
 
-            let val: Value = toml::from_slice(cargo_toml_content)?;
+            let val: Value = toml::from_str(cargo_toml_content)?;
             if let Some(project) = val.get("project") {
                 manifest.package = Some(project.clone().try_into()?);
             } else {
@@ -778,7 +779,7 @@ pub struct Profile {
     pub strip: Option<StripSetting>,
 
     /// profile overrides
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(default)]
     pub package: BTreeMap<String, Value>,
 
     /// profile overrides
@@ -876,11 +877,11 @@ impl Default for Product {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(default)]
     pub dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(default)]
     pub dev_dependencies: DepsSet,
-    #[serde(default, serialize_with = "toml::ser::tables_last")]
+    #[serde(default)]
     pub build_dependencies: DepsSet,
 }
 

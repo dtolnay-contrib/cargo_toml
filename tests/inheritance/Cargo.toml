@@ -6,4 +6,4 @@ package.license-file = "ws-lic"
 
 [workspace.dependencies]
 testdep = "1.4"
-otherdep = { version = "3", features = ["foo"] }
+otherdep = { version = "3", features = ["foo"], path = "workspace-relative" }

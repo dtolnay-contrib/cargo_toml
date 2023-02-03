@@ -9,3 +9,4 @@ exclude.workspace = true
 testdep.workspace = true
 otherdep = { workspace = true, features = ["bar"] }
 normal = "1"
+path_dep = { path = "leaf-relative" }

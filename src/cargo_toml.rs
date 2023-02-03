@@ -257,10 +257,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     pub fn complete_from_abstract_filesystem<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
     ) -> Result<(), Error> {
-        if let Some((ws, mut ws_path)) = workspace_manifest_and_path {
-            if ws_path.file_name() == Some("Cargo.toml".as_ref()) {
-                ws_path = ws_path.parent().ok_or(Error::Other("bad path"))?;
-            }
+        if let Some((ws, ws_path)) = workspace_manifest_and_path {
             self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
         } else if let Some(ws) = self.workspace.take() {
             // Manifest may be both a workspace and a package
@@ -296,9 +293,15 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 
     fn _inherit_workspace<Ignored>(&mut self, workspace: Option<&Workspace<Ignored>>, workspace_base_path: &Path) -> Result<(), Error> {
-        inherit_dependencies(&mut self.dependencies, workspace)?;
-        inherit_dependencies(&mut self.build_dependencies, workspace)?;
-        inherit_dependencies(&mut self.dev_dependencies, workspace)?;
+        let workspace_base_path = if workspace_base_path.file_name() == Some("Cargo.toml".as_ref()) {
+            workspace_base_path.parent().ok_or(Error::Other("bad path"))?
+        } else {
+            workspace_base_path
+        };
+
+        inherit_dependencies(&mut self.dependencies, workspace, workspace_base_path)?;
+        inherit_dependencies(&mut self.build_dependencies, workspace, workspace_base_path)?;
+        inherit_dependencies(&mut self.dev_dependencies, workspace, workspace_base_path)?;
 
         let package = match &mut self.package {
             Some(p) => p,
@@ -341,11 +344,6 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         maybe_inherit(package.repository.as_mut(), ws.repository.as_ref());
         maybe_inherit(package.rust_version.as_mut(), ws.rust_version.as_ref());
         package.publish.inherit(&ws.publish);
-        let workspace_base_path = if workspace_base_path.file_name() == Some("Cargo.toml".as_ref()) {
-            workspace_base_path.parent().ok_or(Error::Other("bad path"))?
-        } else {
-            workspace_base_path
-        };
         match (&mut package.readme, &ws.readme) {
             (r @ Inheritable::Inherited { .. }, flag @ OptionalFile::Flag(_)) => {
                 r.set(flag.clone())
@@ -547,7 +545,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 }
 
-fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace: Option<&Workspace<Ignored>>) -> Result<(), Error> {
+fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependency>, workspace: Option<&Workspace<Ignored>>, workspace_base_path: &Path) -> Result<(), Error> {
     for (key, dep) in deps_to_inherit {
         if let Dependency::Inherited(overrides) = dep {
             let template = workspace.and_then(|ws| ws.dependencies.get(key))
@@ -559,6 +557,11 @@ fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependen
             }
             if !overrides.features.is_empty() {
                 dep.detail_mut().features.append(&mut overrides.features);
+            }
+            if let Dependency::Detailed(dep) = dep {
+                if let Some(path) = &mut dep.path {
+                    *path = workspace_base_path.join(&path).display().to_string();
+                }
             }
         }
     }
@@ -994,6 +997,10 @@ pub struct DependencyDetail {
 
     pub registry: Option<String>,
     pub registry_index: Option<String>,
+
+    /// This path is usually relative to the crate's manifest, but when using workspace inheritance, it may be relative to the workspace!
+    /// When calling `complete_from_path_and_workspace` use absolute path for the workspace manifest, and then this will be corrected to be an absolute
+    /// path when inherited from the workspace.
     pub path: Option<String>,
 
     pub git: Option<String>,

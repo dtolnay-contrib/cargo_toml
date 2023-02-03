@@ -192,25 +192,30 @@ fn inherit() {
     let ws = Manifest::from_slice(&read("tests/inheritance/Cargo.toml").unwrap()).unwrap();
     assert_eq!(2, ws.workspace.as_ref().unwrap().dependencies.len());
     let mut m = Manifest::from_slice(&read("tests/inheritance/hi/Cargo.toml").unwrap()).unwrap();
-    assert_eq!(3, m.dependencies.len());
+    assert_eq!(4, m.dependencies.len());
     m.complete_from_path_and_workspace(Path::new("tests/inheritance/hi/Cargo.toml"), Some((&ws, Path::new("root")))).unwrap();
 
-    assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
+    let otherdep_detail = &m.dependencies.get("otherdep").unwrap().detail().unwrap();
+    assert_eq!(["foo", "bar"], otherdep_detail.features[..]);
+    assert_eq!(Some("root/workspace-relative"), otherdep_detail.path.as_deref());
     assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
     assert_eq!(Path::new("root/ws-lic"), m.package().license_file().unwrap());
+
+    let path_dep = &m.dependencies.get("path_dep").unwrap().detail().unwrap();
+    assert_eq!(Some("leaf-relative"), path_dep.path.as_deref());
 }
 
 #[test]
 fn auto_inherit() {
     let m = Manifest::from_path("tests/inheritance/hi/Cargo.toml").unwrap();
-    assert_eq!(3, m.dependencies.len());
+    assert_eq!(4, m.dependencies.len());
 
     assert_eq!(["foo", "bar"], &m.dependencies.get("otherdep").unwrap().detail().unwrap().features[..]);
     assert_eq!(Path::new("tests/inheritance/ws-path/readme"), m.package().readme().as_path().unwrap());
     assert_eq!(Path::new("tests/inheritance/ws-lic"), m.package().license_file().unwrap());
 
     let m = Manifest::from_path(Path::new("tests/inheritance/hi/Cargo.toml").canonicalize().unwrap()).unwrap();
-    assert_eq!(3, m.dependencies.len());
+    assert_eq!(4, m.dependencies.len());
 
     assert!(m.package().readme().as_path().unwrap().to_string_lossy().contains("/tests/inheritance/ws-path/readme"));
 }

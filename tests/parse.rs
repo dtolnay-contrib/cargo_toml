@@ -196,6 +196,7 @@ fn inherit() {
     m.complete_from_path_and_workspace(Path::new("tests/inheritance/hi/Cargo.toml"), Some((&ws, Path::new("root")))).unwrap();
 
     let otherdep_detail = &m.dependencies.get("otherdep").unwrap().detail().unwrap();
+    assert!(otherdep_detail.inherited);
     assert_eq!(["foo", "bar"], otherdep_detail.features[..]);
     assert_eq!(Some("root/workspace-relative"), otherdep_detail.path.as_deref());
     assert_eq!(Path::new("root/ws-path/readme"), m.package().readme().as_path().unwrap());
@@ -203,6 +204,7 @@ fn inherit() {
 
     let path_dep = &m.dependencies.get("path_dep").unwrap().detail().unwrap();
     assert_eq!(Some("leaf-relative"), path_dep.path.as_deref());
+    assert!(!path_dep.inherited);
 }
 
 #[test]

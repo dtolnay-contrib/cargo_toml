@@ -560,6 +560,7 @@ fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependen
                 dep.detail_mut().features.append(&mut overrides.features);
             }
             if let Dependency::Detailed(dep) = dep {
+                dep.inherited = true;
                 if let Some(path) = &mut dep.path {
                     *path = workspace_base_path.join(&path).display().to_string();
                 }
@@ -1003,6 +1004,12 @@ pub struct DependencyDetail {
     /// When calling `complete_from_path_and_workspace` use absolute path for the workspace manifest, and then this will be corrected to be an absolute
     /// path when inherited from the workspace.
     pub path: Option<String>,
+
+    /// If true, the dependency has been defined at the workspace level, so the `path` is joined with workspace's base path.
+    ///
+    /// Note that `Dependency::Simple` won't have this flag, even if it was inherited.
+    #[serde(skip)]
+    pub inherited: bool,
 
     pub git: Option<String>,
     pub branch: Option<String>,

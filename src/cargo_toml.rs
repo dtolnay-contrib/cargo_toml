@@ -454,7 +454,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                     .or_else(|| dir.get("README.txt"))
                     .or_else(|| dir.get("README"))
             }) {
-                package.build = Some(OptionalFile::Path(PathBuf::from(&**name)));
+                package.readme = Inheritable::Set(OptionalFile::Path(PathBuf::from(&**name)));
             }
         }
         Ok(())

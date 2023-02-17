@@ -227,3 +227,18 @@ fn auto_inherit2() {
     let m = Manifest::from_path("tests/inheritance/with-dir/Cargo.toml").unwrap();
     assert_eq!("1.0.0-lol", m.package().version());
 }
+
+#[test]
+fn renamed_lib() {
+    let m = Manifest::from_slice(&read("tests/renamed_lib/Cargo.toml").unwrap()).unwrap();
+    let package = m.package();
+    assert_eq!("renamed_lib", package.name);
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!("librenamed", lib.name.as_ref().unwrap());
+
+    let m = Manifest::from_path("tests/renamed_lib/Cargo.toml").unwrap();
+    let package = m.package();
+    assert_eq!("renamed_lib", package.name);
+    let lib = m.lib.as_ref().unwrap();
+    assert_eq!("librenamed", lib.name.as_ref().unwrap());
+}

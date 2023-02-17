@@ -383,7 +383,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         if !has_path && src.contains("lib.rs") {
             let old_lib = self.lib.take().unwrap_or_default();
             self.lib = Some(Product {
-                name: Some(package.name.replace('-', "_")),
+                name: if let Some(name) = old_lib.name { Some(name)} else {Some(package.name.replace('-', "_"))},
                 path: Some("src/lib.rs".to_string()),
                 edition: *package.edition.get()?,
                 crate_type: vec!["rlib".to_string()],

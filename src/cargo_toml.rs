@@ -354,12 +354,13 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             },
             _ => {},
         }
-        Ok(match (package.license_file.as_mut(), ws.license_file.as_ref()) {
+        match (package.license_file.as_mut(), ws.license_file.as_ref()) {
             (Some(f), Some(ws)) => {
                 f.set(workspace_base_path.join(ws))
             },
             _ => {},
-        })
+        };
+        Ok(())
     }
 
 

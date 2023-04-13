@@ -46,7 +46,7 @@ fn autobin() {
     let mut bins: Vec<(&str, &str)> = m.bin.iter()
         .filter_map(|product| Some((product.name.as_deref()?, product.path.as_deref()?)))
         .collect();
-    bins.sort();
+    bins.sort_unstable();
 
     let mut expected_bins = [
         ("abcde", "src/abcde.rs"),
@@ -57,7 +57,7 @@ fn autobin() {
         ("d", "src/bin/d/main.rs"),
         ("e", "src/bin/e/main.rs"),
     ];
-    expected_bins.sort();
+    expected_bins.sort_unstable();
 
     assert_eq!(bins, expected_bins);
 

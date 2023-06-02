@@ -650,6 +650,12 @@ impl TryFrom<Value> for DebugSetting {
                 2 => Self::Full,
                 _ => return Err(Error::Other("wrong number for debug setting")),
             },
+            Value::String(s) => match s.as_str() {
+                "none" => Self::None,
+                "limited" | "line-directives-only" | "line-tables-only" => Self::Lines,
+                "full" => Self::Full,
+                _ => return Err(Error::Other("wrong name for debug setting")),
+            },
             _ => return Err(Error::Other("wrong data type for debug setting")),
         })
     }

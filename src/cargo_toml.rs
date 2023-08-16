@@ -952,7 +952,11 @@ impl Dependency {
 
     #[inline]
     #[must_use] pub fn optional(&self) -> bool {
-        self.detail().map_or(false, |d| d.optional)
+        match *self {
+            Dependency::Simple(_) => false,
+            Dependency::Detailed(ref d) => d.optional,
+            Dependency::Inherited(ref d) => d.optional,
+        }
     }
 
     // `Some` if it overrides the package name.

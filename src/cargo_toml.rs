@@ -365,10 +365,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
 
     fn complete_from_abstract_filesystem_inner(&mut self, fs: &dyn AbstractFilesystem) -> Result<(), Error> {
-        let package = match &self.package {
-            Some(p) => p,
-            None => return Ok(()),
-        };
+        let Some(package) = &self.package else { return Ok(()) };
 
         let src = match fs.file_names_in("src") {
             Ok(src) => src,
@@ -442,7 +439,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
         Self::sort_products(&mut self.bench);
 
-        let package = self.package.as_mut().unwrap();
+        let Some(package) = &mut self.package else { return Ok(()) };
 
         if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
             package.build = Some(OptionalFile::Path("build.rs".into()));

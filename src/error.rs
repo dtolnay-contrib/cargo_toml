@@ -1,6 +1,7 @@
 use std::error::Error as StdErr;
 use std::{fmt, io};
 
+/// In this crate's `Result`s.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum Error {

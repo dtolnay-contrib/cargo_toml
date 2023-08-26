@@ -4,6 +4,7 @@ use std::fs::read_dir;
 use std::io;
 use std::path::Path;
 
+/// This crate supports reading `Cargo.toml` not only from a real directory, but also directly from other sources, like tarballs or bare git repos (BYO directory reader).
 pub trait AbstractFilesystem {
     /// List all files and directories at the given relative path (no leading `/`).
     fn file_names_in(&self, rel_path: &str) -> io::Result<HashSet<Box<str>>>;
@@ -14,7 +15,7 @@ pub trait AbstractFilesystem {
     /// Read bytes of the root workspace manifest TOML file and return the path it's been read from,
     /// preferably an absolute path (it will be used as the base path for inherited readmes).
     fn read_root_workspace(&self, _rel_path_hint: Option<&str>) -> io::Result<(Vec<u8>, PathBuf)> {
-        Err(io::ErrorKind::NotFound.into())
+        Err(io::Error::new(io::ErrorKind::Unsupported, "AbstractFilesystem::read_root_workspace unimplemented"))
     }
 }
 
@@ -27,6 +28,7 @@ where
     }
 }
 
+/// [`AbstractFilesystem`] implementation for real files.
 pub struct Filesystem<'a> {
     path: &'a Path,
 }

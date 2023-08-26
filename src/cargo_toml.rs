@@ -1,7 +1,15 @@
+#![forbid(unsafe_code)]
 //! This crate defines `struct`s that can be deserialized with Serde
 //! to load and inspect `Cargo.toml` metadata.
 //!
-//! See `Manifest::from_slice`.
+//! See [`Manifest::from_slice`].
+//!
+//! Correct interpretation of the manifest requires two things:
+//!
+//! * List of files in order to auto-discover binaries, examples, benchmarks, and tests.
+//! * Potentially `Manifest` from parent directories that acts as a workspace root for inheritance of shared workspace information.
+//!
+//! The crate has methods for processing this information, but you will need to write some glue code to obtain it. See [`Manifest::complete_from_path_and_workspace`].
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -12,9 +20,13 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 pub use toml::Value;
 
+/// Dependencies. The keys in this map may not be crate names if `package` is used, but may be feature names if they're optional.
 pub type DepsSet = BTreeMap<String, Dependency>;
+/// Config target (see [`parse_cfg`](https://lib.rs/parse_cfg) crate) + deps for the target.
 pub type TargetDepsSet = BTreeMap<String, Target>;
+/// `[features]` section. `default` is special.
 pub type FeatureSet = BTreeMap<String, Vec<String>>;
+/// Locally replace dependencies
 pub type PatchSet = BTreeMap<String, DepsSet>;
 
 mod afs;
@@ -24,128 +36,178 @@ pub use crate::afs::*;
 pub use crate::error::Error;
 pub use crate::inheritable::Inheritable;
 
-/// The top-level `Cargo.toml` structure
+/// The top-level `Cargo.toml` structure. **This is the main type in this library.**
 ///
-/// The `Metadata` is a type for `[package.metadata]` table. You can replace it with
+/// The `Metadata` is a generic type for `[package.metadata]` table. You can replace it with
 /// your own struct type if you use the metadata and don't want to use the catch-all `Value` type.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Manifest<Metadata = Value> {
+    /// Package definition (a cargo crate)
     pub package: Option<Package<Metadata>>,
+
+    /// Workspace-wide settings
     pub workspace: Option<Workspace<Metadata>>,
+
+    /// Normal dependencies
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
+
+    /// Dev/test-only deps
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dev_dependencies: DepsSet,
+
+    /// Build-time deps
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub build_dependencies: DepsSet,
+
+    /// `[target.cfg.dependencies]`
     #[serde(default, skip_serializing_if = "TargetDepsSet::is_empty")]
     pub target: TargetDepsSet,
+
+    /// `[features]` section
     #[serde(default, skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
 
+    /// Obsolete
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     #[deprecated(note = "Cargo recommends patch instead")]
     pub replace: DepsSet,
 
+    /// `[patch.crates-io]` section
     #[serde(default, skip_serializing_if = "PatchSet::is_empty")]
     pub patch: PatchSet,
 
     /// Note that due to autolibs feature this is not the complete list
-    /// unless you run `complete_from_path`
+    /// unless you run [`Manifest::complete_from_path`]
     pub lib: Option<Product>,
+
+    /// Compilation/optimization settings
     #[serde(default, skip_serializing_if = "Profiles::should_skip_serializing")]
     pub profile: Profiles,
 
+    /// `[badges]` section
     #[serde(default, skip_serializing_if = "Badges::should_skip_serializing")]
     pub badges: Badges,
 
     /// Note that due to autobins feature this is not the complete list
-    /// unless you run `complete_from_path`
+    /// unless you run [`Manifest::complete_from_path`]
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bin: Vec<Product>,
+
+    /// Benchmarks
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bench: Vec<Product>,
+
+    /// Integration tests
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub test: Vec<Product>,
+
+    /// Examples
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub example: Vec<Product>,
 }
 
+/// A manifest can contain both a package and workspace-wide properties
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Workspace<Metadata = Value> {
+    /// Relative paths of crates in here
     #[serde(default)]
     pub members: Vec<String>,
+
+    /// Members to operate on when in the workspace root.
+    ///
+    /// When specified, `default-members` must expand to a subset of `members`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub default_members: Vec<String>,
 
     /// Template for inheritance
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package: Option<PackageTemplate>,
 
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub default_members: Vec<String>,
-
+    /// Ignore these dirs
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
 
+    /// Shared info
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 
+    /// Compatibility setting
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
+    /// Template for needs_workspace_inheritance
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
 }
 
+/// Workspace can predefine properties that can be inherited via `{ workspace = true }` in its member packages.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct PackageTemplate {
+    /// Deprecated
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authors: Option<Vec<String>>,
 
+    /// See <https://crates.io/category_slugs>
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub categories: Option<Vec<String>>,
 
+    /// Multi-line text, some people use Markdown here
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
+    /// URL
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub documentation: Option<String>,
 
+    /// Opt-in to new Rust behaviors
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edition: Option<Edition>,
 
+    /// Don't publish these files, relative to workspace
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exclude: Option<Vec<String>>,
 
+    /// Homepage URL
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<String>,
 
+    /// Publish these files, relative to workspace
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub include: Option<Vec<String>>,
 
+    /// For search
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keywords: Option<Vec<String>>,
 
+    /// SPDX
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license: Option<String>,
 
+    /// If not SPDX
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license_file: Option<PathBuf>,
 
+    /// Block publishing or choose custom registries
     #[serde(default, skip_serializing_if = "Publish::is_default")]
     pub publish: Publish,
 
+    /// Opt-out or custom path, relative to workspace
     #[serde(default, skip_serializing_if = "OptionalFile::is_default")]
     pub readme: OptionalFile,
 
+    /// (HTTPS) repository URL
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
 
+    /// Minimum required rustc version in format `1.99`
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rust_version: Option<String>,
 
+    /// Package version semver
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
@@ -167,27 +229,26 @@ fn is_false(val: &bool) -> bool {
 }
 
 impl Manifest<Value> {
-    /// Parse contents of a `Cargo.toml` file already loaded as a byte slice.
-    ///
-    /// It does not call `complete_from_path`, so may be missing implicit data.
-    #[inline(always)]
-    pub fn from_slice(cargo_toml_content: &[u8]) -> Result<Self, Error> {
-        Self::from_slice_with_metadata(cargo_toml_content)
-    }
-
     /// Parse contents from a `Cargo.toml` file on disk.
     ///
-    /// Calls `complete_from_path`.
+    /// Calls [`Manifest::complete_from_path`] to discover implicit binaries, etc. It will search for a workspace.
     #[inline]
     pub fn from_path(cargo_toml_path: impl AsRef<Path>) -> Result<Self, Error> {
         Self::from_path_with_metadata(cargo_toml_path)
     }
 
+    /// Parse contents of a `Cargo.toml` file already loaded as a byte slice.
+    ///
+    /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data, and panic if workspace inheritance is used.
+    #[inline(always)]
+    pub fn from_slice(cargo_toml_content: &[u8]) -> Result<Self, Error> {
+        Self::from_slice_with_metadata(cargo_toml_content)
+    }
     /// Parse contents of a `Cargo.toml` file loaded as a string
     ///
-    /// Note: this is **not** a file name, but file's content. See `from_path`.
+    /// Note: this is **not** a file name, but file's TOML-syntax content. See `from_path`.
     ///
-    /// It does not call `complete_from_path`, so may be missing implicit data.
+    /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data, and panic if workspace inheritance is used.
     #[inline(always)]
     pub fn from_str(cargo_toml_content: &str) -> Result<Self, Error> {
         Self::from_slice_with_metadata(cargo_toml_content.as_bytes())
@@ -197,7 +258,7 @@ impl Manifest<Value> {
 impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// Parse `Cargo.toml`, and parse its `[package.metadata]` into a custom Serde-compatible type.package
     ///
-    /// It does not call `complete_from_path`, so may be missing implicit data.
+    /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data.
     pub fn from_slice_with_metadata(cargo_toml_content: &[u8]) -> Result<Self, Error> {
         let cargo_toml_content = std::str::from_utf8(cargo_toml_content).map_err(|_| Error::Other("utf8"))?;
         let mut manifest: Self = toml::from_str(cargo_toml_content)?;
@@ -216,7 +277,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
 
     /// Parse contents from `Cargo.toml` file on disk, with custom Serde-compatible metadata type.
     ///
-    /// Calls [`complete_from_path`]
+    /// Calls [`Manifest::complete_from_path`]
     pub fn from_path_with_metadata<P: AsRef<Path>>(cargo_toml_path: P) -> Result<Self, Error> {
         let cargo_toml_path = cargo_toml_path.as_ref();
         let cargo_toml_content = fs::read(cargo_toml_path)?;
@@ -231,18 +292,18 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// This scans the disk to make the data in the manifest as complete as possible.
     ///
     /// It supports workspace inheritance and will search for a root workspace.
-    /// Use `complete_from_path_and_workspace` to provide the workspace explicitly.
+    /// Use [`Manifest::complete_from_path_and_workspace`] to provide the workspace explicitly.
     pub fn complete_from_path(&mut self, path: &Path) -> Result<(), Error> {
         let manifest_dir = path.parent().ok_or(Error::Other("bad path"))?;
         self.complete_from_abstract_filesystem::<Value, _>(Filesystem::new(manifest_dir), None)
     }
 
-    /// [`complete_from_path`], but allows passing workspace manifest explicitly.
+    /// [`Manifest::complete_from_path`], but allows passing workspace manifest explicitly.
     ///
     /// `workspace_manifest_and_path` is the root workspace manifest already parsed,
     /// and the path is the path to the root workspace's directory.
     /// If it's `None`, the root workspace will be discovered automatically.
-    pub fn complete_from_path_and_workspace<WorkspaceMetadataIgnored>(&mut self, package_manifest_path: &Path, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>) -> Result<(), Error> {
+    pub fn complete_from_path_and_workspace<PackageMetadataTypeDoesNotMatterHere>(&mut self, package_manifest_path: &Path, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>) -> Result<(), Error> {
         let manifest_dir = package_manifest_path.parent().ok_or(Error::Other("bad path"))?;
         self.complete_from_abstract_filesystem(Filesystem::new(manifest_dir), workspace_manifest_and_path)
     }
@@ -255,8 +316,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     ///
     /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
     /// If it's `None`, it will try to find a workspace if needed.
-    pub fn complete_from_abstract_filesystem<WorkspaceMetadataIgnored, Fs: AbstractFilesystem>(
-        &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<WorkspaceMetadataIgnored>, &Path)>
+    pub fn complete_from_abstract_filesystem<PackageMetadataTypeDoesNotMatterHere, Fs: AbstractFilesystem>(
+        &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>
     ) -> Result<(), Error> {
         if let Some((ws, ws_path)) = workspace_manifest_and_path {
             self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
@@ -592,23 +653,30 @@ impl<Metadata: Default> Default for Manifest<Metadata> {
     }
 }
 
+/// Build-in an custom build/optimization settings
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Profiles {
+    /// Used for `--release`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub release: Option<Profile>,
 
+    /// Used by default, weirdly called `debug` profile.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dev: Option<Profile>,
 
+    /// Used for `cargo test`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test: Option<Profile>,
 
+    /// Used for `cargo bench` (nightly)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bench: Option<Profile>,
 
+    /// Used for `cargo doc`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<Profile>,
 
+    /// User-suppiled for `cargo --profile=name`
     #[serde(flatten)]
     pub custom: HashMap<String, Profile>,
 }
@@ -625,6 +693,7 @@ impl Profiles {
     }
 }
 
+/// Verbosity of debug info in a [`Profile`]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(try_from = "toml::Value")]
 pub enum DebugSetting {
@@ -668,6 +737,7 @@ impl Serialize for DebugSetting {
     }
 }
 
+/// Handling of debug symbols in a build profile
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(try_from = "toml::Value")]
 pub enum StripSetting {
@@ -705,6 +775,7 @@ impl TryFrom<Value> for StripSetting {
     }
 }
 
+/// Handling of LTO in a build profile
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
 #[serde(try_from = "toml::Value")]
 pub enum LtoSetting {
@@ -745,6 +816,7 @@ impl TryFrom<Value> for LtoSetting {
     }
 }
 
+/// Compilation/optimization settings for a workspace
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Profile {
@@ -756,38 +828,47 @@ pub struct Profile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug: Option<DebugSetting>,
 
+    /// Move debug info to separate files
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub split_debuginfo: Option<String>,
 
+    /// For dynamic libraries
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rpath: Option<bool>,
 
+    /// Link-time-optimization
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lto: Option<LtoSetting>,
 
+    /// Extra assertions
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_assertions: Option<bool>,
 
+    /// Parallel compilation
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codegen_units: Option<u16>,
 
+    /// Handling of panics/unwinding
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub panic: Option<String>,
 
+    /// Support for incremental rebuilds
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub incremental: Option<bool>,
 
+    /// Check integer arithmetic
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overflow_checks: Option<bool>,
 
+    /// Remove debug info
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub strip: Option<StripSetting>,
 
-    /// profile overrides
+    /// Profile overrides for dependencies, `*` is special.
     #[serde(default)]
     pub package: BTreeMap<String, Value>,
 
-    /// profile overrides
+    /// Profile overrides for build dependencies, `*` is special.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_override: Option<Value>,
 }
@@ -879,17 +960,24 @@ impl Default for Product {
     }
 }
 
+/// Dependencies that are platform-specific or enabled through custom `cfg()`.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
+    /// platform-specific normal deps
     #[serde(default)]
     pub dependencies: DepsSet,
+    /// platform-specific dev-only/test-only deps
     #[serde(default)]
     pub dev_dependencies: DepsSet,
+    /// platform-specific build-time deps
     #[serde(default)]
     pub build_dependencies: DepsSet,
 }
 
+/// Dependency definition. Note that this struct doesn't carry it's key/name, which you need to read from its section.
+///
+/// It can be simple version number, or detailed settings, or inherited.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Dependency {
@@ -901,6 +989,7 @@ pub enum Dependency {
 }
 
 impl Dependency {
+    /// Get object with special dependency settings if it's not just a version number.
     #[inline]
     #[must_use] pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
@@ -928,6 +1017,7 @@ impl Dependency {
         }
     }
 
+    /// Version requirement
     #[inline]
     #[track_caller]
     #[must_use] pub fn req(&self) -> &str {
@@ -938,6 +1028,7 @@ impl Dependency {
         }
     }
 
+    /// Enable extra features for this dep.
     #[inline]
     #[must_use] pub fn req_features(&self) -> &[String] {
         match *self {
@@ -947,6 +1038,7 @@ impl Dependency {
         }
     }
 
+    /// Is it optional. Note that optional deps can be used as features, unless features use `dep:`/`?` syntax for them..
     #[inline]
     #[must_use] pub fn optional(&self) -> bool {
         match *self {
@@ -956,8 +1048,8 @@ impl Dependency {
         }
     }
 
-    // `Some` if it overrides the package name.
-    // If `None`, use the dependency name as the package name.
+    /// `Some` if it overrides the package name.
+    /// If `None`, use the dependency name as the package name.
     #[inline]
     #[must_use] pub fn package(&self) -> Option<&str> {
         match *self {
@@ -966,20 +1058,20 @@ impl Dependency {
         }
     }
 
-    // Git URL of this dependency, if any
+    /// Git URL of this dependency, if any
     #[inline]
     #[must_use] pub fn git(&self) -> Option<&str> {
         self.detail()?.git.as_deref()
     }
 
-    // Git URL of this dependency, if any
+    /// Git commit of this dependency, if any
     #[inline]
     #[must_use] pub fn git_rev(&self) -> Option<&str> {
         self.detail()?.rev.as_deref()
     }
 
-    // `true` if it's an usual crates.io dependency,
-    // `false` if git/path/alternative registry
+    /// `true` if it's an usual crates.io dependency,
+    /// `false` if git/path/alternative registry
     #[track_caller]
     #[must_use] pub fn is_crates_io(&self) -> bool {
         match *self {
@@ -999,17 +1091,22 @@ impl Dependency {
     }
 }
 
+/// When definition of a dependency is more than just a version string.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
-    /// Requirement
+    /// Semver requirement. Note that a plain version number implies this version *or newer* compatible one.
     pub version: Option<String>,
 
+    /// Fetch this dependency from a custom 3rd party registry (alias defined in Cargo config), not crates-io.
     pub registry: Option<String>,
+
+    /// Directly define custom 3rd party registry URL (may be `sparse+https:`) instead of a config nickname.
     pub registry_index: Option<String>,
 
     /// This path is usually relative to the crate's manifest, but when using workspace inheritance, it may be relative to the workspace!
-    /// When calling `complete_from_path_and_workspace` use absolute path for the workspace manifest, and then this will be corrected to be an absolute
+    ///
+    /// When calling [`Manifest::complete_from_path_and_workspace`] use absolute path for the workspace manifest, and then this will be corrected to be an absolute
     /// path when inherited from the workspace.
     pub path: Option<String>,
 
@@ -1019,25 +1116,37 @@ pub struct DependencyDetail {
     #[serde(skip)]
     pub inherited: bool,
 
+    /// Read dependency from git repo URL, not allowed on crates-io.
     pub git: Option<String>,
+    /// Read dependency from git branch, not allowed on crates-io.
     pub branch: Option<String>,
+    /// Read dependency from git tag, not allowed on crates-io.
     pub tag: Option<String>,
+    /// Read dependency from git commit, not allowed on crates-io.
     pub rev: Option<String>,
 
+    /// Enable these features of the dependency. `default` is handled in a special way.
     #[serde(default)]
     pub features: Vec<String>,
 
     /// NB: Not allowed at workspace level
+    ///
+    /// If not used with `dep:` or `?/` syntax in `[features]`, this also creates an implicit feature.
     #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
 
+    /// Enable `default` features of the dependency.
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub default_features: bool,
 
-    /// Use this crate name instead of table key
+    /// Use this crate name instead of table key.
+    ///
+    /// By using this, a crate can have multiple versions of the same dependency.
     pub package: Option<String>,
 }
 
+/// When a dependency is defined as `{ workspace = true }`,
+/// and workspace data hasn't been applied yet.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct InheritedDependencyDetail {
@@ -1051,15 +1160,20 @@ pub struct InheritedDependencyDetail {
     pub workspace: bool,
 }
 
-/// You can replace `Metadata` type with your own
+/// The `[package]` section of the [`Manifest`]. This is where crate properties are.
+///
+/// Note that most of these properties can be inherited from a workspace, and therefore not available just from reading a single `Cargo.toml`. See [`Manifest::inherit_workspace`].
+///
+/// You can replace `Metadata` generic type with your own
 /// to parse into something more useful than a generic toml `Value`
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub struct Package<Metadata = Value> {
-    /// Careful: some names are uppercase
+    /// Careful: some names are uppercase, case-sensitive. `-` changes to `_` when used as a Rust identifier.
     pub name: String,
 
+    /// Package's edition opt-in.
     #[serde(default)]
     pub edition: Inheritable<Edition>,
 
@@ -1067,9 +1181,10 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rust_version: Option<Inheritable<String>>,
 
-    /// e.g. "1.9.0"
+    /// Must parse as semver, e.g. "1.9.0"
     pub version: Inheritable<String>,
 
+    /// Build script definition
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build: Option<OptionalFile>,
 
@@ -1082,6 +1197,7 @@ pub struct Package<Metadata = Value> {
     #[serde(skip_serializing_if = "Inheritable::is_empty")]
     pub authors: Inheritable<Vec<String>>,
 
+    /// It doesn't link to anything
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub links: Option<String>,
 
@@ -1090,9 +1206,11 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<Inheritable<String>>,
 
+    /// Project's homepage
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub homepage: Option<Inheritable<String>>,
 
+    /// Path to your custom docs. Unnecssary if you rely on docs.rs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub documentation: Option<Inheritable<String>>,
 
@@ -1101,6 +1219,7 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Inheritable::is_default")]
     pub readme: Inheritable<OptionalFile>,
 
+    /// Up to 5, for search
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub keywords: Inheritable<Vec<String>>,
 
@@ -1109,9 +1228,11 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub categories: Inheritable<Vec<String>>,
 
+    /// Don't publish these files
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub exclude: Inheritable<Vec<String>>,
 
+    /// Publish these files
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub include: Inheritable<Vec<String>>,
 
@@ -1119,9 +1240,11 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license: Option<Inheritable<String>>,
 
+    /// If `license` is not standard
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub license_file: Option<Inheritable<PathBuf>>,
 
+    /// (HTTPS) URL to crate's repository
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub repository: Option<Inheritable<String>>,
 
@@ -1129,18 +1252,23 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_run: Option<String>,
 
+    /// Discover binaries from the file system
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobins: bool,
 
+    /// Discover examples from the file system
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autoexamples: bool,
 
+    /// Discover tests from the file system
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autotests: bool,
 
+    /// Discover benchmarks from the file system
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobenches: bool,
 
+    /// Disable publishing or select custom registries.
     #[serde(default, skip_serializing_if = "Inheritable::is_default")]
     pub publish: Inheritable<Publish>,
 
@@ -1148,13 +1276,14 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
+    /// Arbitrary metadata of any type, an extension point for 3rd party tools.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
 }
 
 #[allow(deprecated)]
 impl<Metadata> Package<Metadata> {
-    /// Prefer creating it by parsing `Manifest` instead
+    /// Prefer creating it by parsing a [`Manifest`] instead.
     pub fn new(name: impl Into<String>, version: impl Into<String>) -> Self {
         Self {
             name: name.into(),
@@ -1245,6 +1374,7 @@ impl<Metadata> Package<Metadata> {
     pub fn exclude(&self) -> &[String] {
         self.exclude.as_ref().unwrap()
     }
+
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
     #[track_caller]
     #[inline]
@@ -1325,11 +1455,17 @@ impl<Metadata> Package<Metadata> {
         self.version.as_ref().unwrap()
     }
 
+    /// The property that doesn't actually link with anything.
+    ///
+    /// Can't be inherited.
     #[inline]
     pub fn links(&self) -> Option<&str> {
         self.links.as_deref()
     }
 
+    /// Name of the package/crate. Libraries and binaries can override it.
+    ///
+    /// Can't be inherited.
     #[inline]
     pub fn name(&self) -> &str {
         &self.name
@@ -1361,7 +1497,7 @@ impl<Metadata: Default> Default for Package<Metadata> {
     }
 }
 
-/// Readme of build.rs path
+/// A way specify or disable README or `build.rs`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum OptionalFile {
@@ -1398,6 +1534,7 @@ impl OptionalFile {
     }
 }
 
+/// Forbids or selects custom registry
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Publish {
@@ -1435,6 +1572,9 @@ impl PartialEq<bool> for Publish {
     }
 }
 
+/// In badges section of Cargo.toml
+///
+/// Mostly obsolete.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Badge {
@@ -1458,7 +1598,7 @@ where
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
 }
 
-/// Deprecated
+/// `[badges]` section of `Cargo.toml`, deprecated by crates-io except `maintenance`.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Badges {
@@ -1526,11 +1666,13 @@ impl Badges {
     }
 }
 
+/// A [`Badges`] field with [`MaintenanceStatus`].
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Maintenance {
     pub status: MaintenanceStatus,
 }
 
+/// Mainly used to deprecate crates.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MaintenanceStatus {
@@ -1549,12 +1691,16 @@ impl Default for MaintenanceStatus {
     }
 }
 
+/// Edition setting, which opts in to new Rust/Cargo behaviors.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Edition {
+    /// 2015
     #[serde(rename = "2015")]
     E2015 = 2015,
+    /// 2018
     #[serde(rename = "2018")]
     E2018 = 2018,
+    /// 2021
     #[serde(rename = "2021")]
     E2021 = 2021,
 }
@@ -1565,6 +1711,7 @@ impl Default for Edition {
     }
 }
 
+/// `resolver = "2"` setting. Needed in [`Workspace`], but implied by [`Edition`] in packages.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Resolver {
     #[serde(rename = "1")]

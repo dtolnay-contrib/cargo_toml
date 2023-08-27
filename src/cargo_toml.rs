@@ -250,6 +250,7 @@ impl Manifest<Value> {
     ///
     /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data, and panic if workspace inheritance is used.
     #[inline(always)]
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(cargo_toml_content: &str) -> Result<Self, Error> {
         Self::from_slice_with_metadata(cargo_toml_content.as_bytes())
     }
@@ -1675,7 +1676,9 @@ pub struct Maintenance {
 /// Mainly used to deprecate crates.
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
+#[derive(Default)]
 pub enum MaintenanceStatus {
+    #[default]
     None,
     ActivelyDeveloped,
     PassivelyMaintained,
@@ -1685,11 +1688,7 @@ pub enum MaintenanceStatus {
     Deprecated,
 }
 
-impl Default for MaintenanceStatus {
-    fn default() -> Self {
-        MaintenanceStatus::None
-    }
-}
+
 
 /// Edition setting, which opts in to new Rust/Cargo behaviors.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]

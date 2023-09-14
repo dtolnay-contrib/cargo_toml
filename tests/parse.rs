@@ -1,6 +1,6 @@
-use std::path::Path;
 use cargo_toml::{Manifest, StripSetting};
 use std::fs::read;
+use std::path::Path;
 
 #[test]
 fn own() {

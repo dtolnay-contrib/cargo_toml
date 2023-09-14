@@ -1,8 +1,8 @@
-use std::path::PathBuf;
 use std::collections::HashSet;
 use std::fs::read_dir;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
 
 /// This crate supports reading `Cargo.toml` not only from a real directory, but also directly from other sources, like tarballs or bare git repos (BYO directory reader).
 pub trait AbstractFilesystem {
@@ -34,7 +34,8 @@ pub struct Filesystem<'a> {
 }
 
 impl<'a> Filesystem<'a> {
-    #[must_use] pub fn new(path: &'a Path) -> Self {
+    #[must_use]
+    pub fn new(path: &'a Path) -> Self {
         Self { path }
     }
 }
@@ -60,9 +61,7 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
                 match find_in(self.path) {
                     Ok(found) => Ok(found),
                     Err(err) if self.path.is_absolute() => Err(err),
-                    Err(_) => {
-                        find_in(&self.path.ancestors().last().unwrap().canonicalize()?)
-                    }
+                    Err(_) => find_in(&self.path.ancestors().last().unwrap().canonicalize()?),
                 }
             }
         }

@@ -1,5 +1,5 @@
 use crate::Error;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Placeholder for a property that may be missing from its package, and needs to be copied from a `Workspace`.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -8,7 +8,7 @@ pub enum Inheritable<T> {
     Set(T),
     Inherited {
         /// Always `true` (this is for serde)
-        workspace: bool
+        workspace: bool,
     },
 }
 
@@ -16,7 +16,7 @@ impl<T> Inheritable<T> {
     pub fn as_ref(&self) -> Inheritable<&T> {
         match self {
             Self::Set(t) => Inheritable::Set(t),
-            Self::Inherited{..} => Inheritable::Inherited { workspace: true },
+            Self::Inherited { .. } => Inheritable::Inherited { workspace: true },
         }
     }
 
@@ -28,7 +28,7 @@ impl<T> Inheritable<T> {
     pub fn get(&self) -> Result<&T, Error> {
         match self {
             Self::Set(t) => Ok(t),
-            Self::Inherited{..} => Err(Error::InheritedUnknownValue),
+            Self::Inherited { .. } => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -39,7 +39,7 @@ impl<T> Inheritable<T> {
     pub fn as_mut(&mut self) -> Inheritable<&mut T> {
         match self {
             Self::Set(t) => Inheritable::Set(t),
-            Self::Inherited{..} => Inheritable::Inherited { workspace: true },
+            Self::Inherited { .. } => Inheritable::Inherited { workspace: true },
         }
     }
 
@@ -47,7 +47,7 @@ impl<T> Inheritable<T> {
     pub fn get_mut(&mut self) -> Result<&mut T, Error> {
         match self {
             Self::Set(t) => Ok(t),
-            Self::Inherited{..} => Err(Error::InheritedUnknownValue),
+            Self::Inherited { .. } => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -56,7 +56,7 @@ impl<T> Inheritable<T> {
     pub fn unwrap(self) -> T {
         match self {
             Self::Set(t) => t,
-            Self::Inherited{..} => panic!("inherited workspace value"),
+            Self::Inherited { .. } => panic!("inherited workspace value"),
         }
     }
 
@@ -76,9 +76,10 @@ impl<T: Default> Default for Inheritable<T> {
 
 impl<T> Inheritable<Vec<T>> {
     /// False if inherited and unknown
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         match self {
-            Self::Inherited{..} => false,
+            Self::Inherited { .. } => false,
             Self::Set(v) => v.is_empty(),
         }
     }
@@ -88,7 +89,7 @@ impl<T: Default + PartialEq> Inheritable<T> {
     /// False if inherited and unknown
     pub fn is_default(&self) -> bool {
         match self {
-            Self::Inherited{..} => false,
+            Self::Inherited { .. } => false,
             Self::Set(v) => T::default() == *v,
         }
     }
@@ -108,7 +109,7 @@ impl<T> From<Inheritable<T>> for Option<T> {
     /// `None` if inherited
     fn from(val: Inheritable<T>) -> Self {
         match val {
-            Inheritable::Inherited{..} => None,
+            Inheritable::Inherited { .. } => None,
             Inheritable::Set(val) => Some(val),
         }
     }

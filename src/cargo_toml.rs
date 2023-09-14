@@ -417,10 +417,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             _ => {},
         }
         match (package.license_file.as_mut(), ws.license_file.as_ref()) {
-            (Some(f), Some(ws)) => {
-                f.set(workspace_base_path.join(ws))
-            },
-            _ => {},
+            (Some(f), Some(ws)) => f.set(workspace_base_path.join(ws)),
+            _ => {}
         };
         Ok(())
     }
@@ -1021,7 +1019,8 @@ impl Dependency {
     /// Version requirement
     #[inline]
     #[track_caller]
-    #[must_use] pub fn req(&self) -> &str {
+    #[must_use]
+    pub fn req(&self) -> &str {
         match *self {
             Dependency::Simple(ref v) => v,
             Dependency::Detailed(ref d) => d.version.as_deref().unwrap_or("*"),
@@ -1031,7 +1030,8 @@ impl Dependency {
 
     /// Enable extra features for this dep.
     #[inline]
-    #[must_use] pub fn req_features(&self) -> &[String] {
+    #[must_use]
+    pub fn req_features(&self) -> &[String] {
         match *self {
             Dependency::Simple(_) => &[],
             Dependency::Detailed(ref d) => &d.features,
@@ -1041,7 +1041,8 @@ impl Dependency {
 
     /// Is it optional. Note that optional deps can be used as features, unless features use `dep:`/`?` syntax for them..
     #[inline]
-    #[must_use] pub fn optional(&self) -> bool {
+    #[must_use]
+    pub fn optional(&self) -> bool {
         match *self {
             Dependency::Simple(_) => false,
             Dependency::Detailed(ref d) => d.optional,
@@ -1052,7 +1053,8 @@ impl Dependency {
     /// `Some` if it overrides the package name.
     /// If `None`, use the dependency name as the package name.
     #[inline]
-    #[must_use] pub fn package(&self) -> Option<&str> {
+    #[must_use]
+    pub fn package(&self) -> Option<&str> {
         match *self {
             Dependency::Detailed(ref d) => d.package.as_deref(),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
@@ -1061,20 +1063,23 @@ impl Dependency {
 
     /// Git URL of this dependency, if any
     #[inline]
-    #[must_use] pub fn git(&self) -> Option<&str> {
+    #[must_use]
+    pub fn git(&self) -> Option<&str> {
         self.detail()?.git.as_deref()
     }
 
     /// Git commit of this dependency, if any
     #[inline]
-    #[must_use] pub fn git_rev(&self) -> Option<&str> {
+    #[must_use]
+    pub fn git_rev(&self) -> Option<&str> {
         self.detail()?.rev.as_deref()
     }
 
     /// `true` if it's an usual crates.io dependency,
     /// `false` if git/path/alternative registry
     #[track_caller]
-    #[must_use] pub fn is_crates_io(&self) -> bool {
+    #[must_use]
+    pub fn is_crates_io(&self) -> bool {
         match *self {
             Dependency::Simple(_) => true,
             Dependency::Detailed(ref d) => {
@@ -1522,7 +1527,8 @@ impl OptionalFile {
     }
 
     #[inline]
-    #[must_use] pub fn as_path(&self) -> Option<&Path> {
+    #[must_use]
+    pub fn as_path(&self) -> Option<&Path> {
         match self {
             Self::Path(p) => Some(p),
             _ => None,
@@ -1530,7 +1536,8 @@ impl OptionalFile {
     }
 
     #[inline]
-    #[must_use] pub fn is_some(&self) -> bool {
+    #[must_use]
+    pub fn is_some(&self) -> bool {
         matches!(self, Self::Flag(true) | Self::Path(_))
     }
 }
@@ -1687,8 +1694,6 @@ pub enum MaintenanceStatus {
     LookingForMaintainer,
     Deprecated,
 }
-
-
 
 /// Edition setting, which opts in to new Rust/Cargo behaviors.
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]

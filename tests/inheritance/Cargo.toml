@@ -3,7 +3,9 @@ members = ["hi"]
 package.readme = "ws-path/readme"
 package.exclude = ["ws-exclude"]
 package.license-file = "ws-lic"
+package.version = "2.2.0"
 
 [workspace.dependencies]
 testdep = "1.4"
 otherdep = { version = "3", features = ["foo"], path = "workspace-relative" }
+doubly_nested = { version = "2.2", path = "hi/doubly_nested" }

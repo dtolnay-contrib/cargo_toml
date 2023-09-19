@@ -1,0 +1,4 @@
+[package]
+name = "doubly_nested"
+version.workspace = true
+edition = "2021"

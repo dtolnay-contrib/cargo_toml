@@ -327,11 +327,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             self._inherit_workspace(Some(&ws), Path::new(""))?;
             self.workspace = Some(ws);
         } else if self.needs_workspace_inheritance() {
-            let (toml, base_path) = fs.read_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref()))
-                .map_err(|e| Error::Workspace(Box::new(e.into())))?;
-            let manifest = Manifest::from_slice(&toml)
-                .map_err(|e| Error::Workspace(Box::new(e)))?;
-            self._inherit_workspace(manifest.workspace.as_ref(), &base_path)?;
+            let (ws_manifest, base_path) = fs.parse_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref()))?;
+            self._inherit_workspace(ws_manifest.workspace.as_ref(), &base_path)?;
         }
         self.complete_from_abstract_filesystem_inner(&fs)
     }

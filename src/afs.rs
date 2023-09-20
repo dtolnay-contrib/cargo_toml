@@ -29,7 +29,6 @@ pub trait AbstractFilesystem {
     /// Read and parse the root workspace manifest TOML file and return the path it's been read from.
     /// The path needs to be an absolute path, because it will be used as the base path for inherited readmes, and would be ambiguous otherwise.
     fn parse_root_workspace(&self, rel_path_hint: Option<&str>) -> Result<(Manifest<Value>, PathBuf), Error> {
-        eprintln!("bad fallback!");
         let (data, path) = self.read_root_workspace(rel_path_hint).map_err(|e| Error::Workspace(Box::new(e.into())))?;
         let manifest = Manifest::from_slice(&data).map_err(|e| Error::Workspace(Box::new(e)))?;
         if manifest.workspace.is_none() {
@@ -96,7 +95,6 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
     }
 
     fn parse_root_workspace(&self, path: Option<&str>) -> Result<(Manifest<Value>, PathBuf), Error> {
-        eprintln!("parse good");
         match path {
             Some(path) => {
                 let ws = self.path.join(path);
@@ -136,12 +134,10 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
     path.ancestors().skip(1)
         .map(|parent| parent.join("Cargo.toml"))
         .find_map(|p| {
-            eprintln!("checking ws {}", p.display());
             let data = std::fs::read(&p).ok()?;
             match parse_workspace(&data, &p) {
                 Ok(manifest) => Some((manifest, p)),
                 Err(e) => {
-                    eprintln!("eeee {e}");
                     last_error = e;
                     None
                 },
@@ -152,12 +148,9 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
 
 #[inline(never)]
 fn parse_workspace(data: &[u8], path: &Path) -> Result<Manifest<Value>, Error> {
-    eprintln!("parsing ws {}", path.display());
     let manifest = Manifest::from_slice(&data).map_err(|e| Error::Workspace(Box::new(e)))?;
     if manifest.workspace.is_none() {
-        eprintln!("{} is not ws", path.display());
         return Err(Error::WorkspaceIntegrity(format!("Manifest at {} was expected to be a workspace.", path.display())));
     }
-    eprintln!("{} IS ws", path.display());
     Ok(manifest)
 }

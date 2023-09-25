@@ -14,7 +14,7 @@ pub trait AbstractFilesystem {
 
     /// `parse_root_workspace` is preferred.
     ///
-    /// The `rel_path_hint` may be specified explicitly by `package.workspace` (it may be relative like `"../", without `Cargo.toml`) or `None`,
+    /// The `rel_path_hint` may be specified explicitly by `package.workspace` (it may be relative like `"../"`, without `Cargo.toml`) or `None`,
     /// which means you have to search for workspace's `Cargo.toml` in parent directories.
     ///
     /// Read bytes of the root workspace manifest TOML file and return the path it's been read from.
@@ -100,7 +100,7 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
                 let ws = self.path.join(path);
                 let toml_path = ws.join("Cargo.toml");
                 let data = std::fs::read(&toml_path)
-                    .map_err(|e| Error::Workspace(Box::new(Error::Io(e.into()))))?;
+                    .map_err(|e| Error::Workspace(Box::new(Error::Io(e))))?;
                 Ok((parse_workspace(&data, &toml_path)?, ws))
             },
             None => {
@@ -148,7 +148,7 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
 
 #[inline(never)]
 fn parse_workspace(data: &[u8], path: &Path) -> Result<Manifest<Value>, Error> {
-    let manifest = Manifest::from_slice(&data).map_err(|e| Error::Workspace(Box::new(e)))?;
+    let manifest = Manifest::from_slice(data).map_err(|e| Error::Workspace(Box::new(e)))?;
     if manifest.workspace.is_none() {
         return Err(Error::WorkspaceIntegrity(format!("Manifest at {} was expected to be a workspace.", path.display())));
     }

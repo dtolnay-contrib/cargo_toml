@@ -33,7 +33,7 @@ impl<T> Inheritable<T> {
     }
 
     pub fn set(&mut self, val: T) {
-        *self = Self::Set(val)
+        *self = Self::Set(val);
     }
 
     pub fn as_mut(&mut self) -> Inheritable<&mut T> {
@@ -63,7 +63,7 @@ impl<T> Inheritable<T> {
     /// Copy from workspace if needed
     pub fn inherit(&mut self, other: &T) where T: Clone {
         if let Self::Inherited{..} = self {
-            *self = Self::Set(other.clone())
+            *self = Self::Set(other.clone());
         }
     }
 }

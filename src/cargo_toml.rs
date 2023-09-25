@@ -334,7 +334,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     }
 
     fn needs_workspace_inheritance(&self) -> bool {
-        self.package.as_ref().map_or(false, |p| p.needs_workspace_inheritance()) ||
+        self.package.as_ref().map_or(false, Package::needs_workspace_inheritance) ||
         self.dependencies.values()
             .chain(self.build_dependencies.values())
             .chain(self.dev_dependencies.values())
@@ -406,10 +406,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         package.publish.inherit(&ws.publish);
         match (&mut package.readme, &ws.readme) {
             (r @ Inheritable::Inherited { .. }, flag @ OptionalFile::Flag(_)) => {
-                r.set(flag.clone())
+                r.set(flag.clone());
             },
             (r @ Inheritable::Inherited { .. }, OptionalFile::Path(path)) => {
-                r.set(OptionalFile::Path(workspace_base_path.join(path)))
+                r.set(OptionalFile::Path(workspace_base_path.join(path)));
             },
             _ => {},
         }
@@ -443,7 +443,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
                 edition: *package.edition.get()?,
                 crate_type: vec!["rlib".to_string()],
                 ..old_lib
-            })
+            });
         }
 
         if package.autobins {
@@ -1491,13 +1491,13 @@ impl<Metadata> Package<Metadata> {
         self.include.is_set() &&
         self.keywords.is_set() &&
         self.version.is_set() &&
-        self.description.as_ref().map_or(true, |v| v.is_set()) &&
-        self.documentation.as_ref().map_or(true, |v| v.is_set()) &&
-        self.homepage.as_ref().map_or(true, |v| v.is_set()) &&
-        self.license.as_ref().map_or(true, |v| v.is_set()) &&
-        self.license_file.as_ref().map_or(true, |v| v.is_set()) &&
-        self.repository.as_ref().map_or(true, |v| v.is_set()) &&
-        self.rust_version.as_ref().map_or(true, |v| v.is_set()) &&
+        self.description.as_ref().map_or(true, Inheritable::is_set) &&
+        self.documentation.as_ref().map_or(true, Inheritable::is_set) &&
+        self.homepage.as_ref().map_or(true, Inheritable::is_set) &&
+        self.license.as_ref().map_or(true, Inheritable::is_set) &&
+        self.license_file.as_ref().map_or(true, Inheritable::is_set) &&
+        self.repository.as_ref().map_or(true, Inheritable::is_set) &&
+        self.rust_version.as_ref().map_or(true, Inheritable::is_set) &&
         self.publish.is_set() &&
         self.readme.is_set())
     }

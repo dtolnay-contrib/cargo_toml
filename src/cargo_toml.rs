@@ -1099,18 +1099,22 @@ impl Dependency {
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
     /// Semver requirement. Note that a plain version number implies this version *or newer* compatible one.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 
     /// Fetch this dependency from a custom 3rd party registry (alias defined in Cargo config), not crates-io.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub registry: Option<String>,
 
     /// Directly define custom 3rd party registry URL (may be `sparse+https:`) instead of a config nickname.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub registry_index: Option<String>,
 
     /// This path is usually relative to the crate's manifest, but when using workspace inheritance, it may be relative to the workspace!
     ///
     /// When calling [`Manifest::complete_from_path_and_workspace`] use absolute path for the workspace manifest, and then this will be corrected to be an absolute
     /// path when inherited from the workspace.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 
     /// If true, the dependency has been defined at the workspace level, so the `path` is joined with workspace's base path.
@@ -1120,16 +1124,20 @@ pub struct DependencyDetail {
     pub inherited: bool,
 
     /// Read dependency from git repo URL, not allowed on crates-io.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub git: Option<String>,
     /// Read dependency from git branch, not allowed on crates-io.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
     /// Read dependency from git tag, not allowed on crates-io.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tag: Option<String>,
     /// Read dependency from git commit, not allowed on crates-io.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rev: Option<String>,
 
     /// Enable these features of the dependency. `default` is handled in a special way.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub features: Vec<String>,
 
     /// NB: Not allowed at workspace level
@@ -1145,6 +1153,7 @@ pub struct DependencyDetail {
     /// Use this crate name instead of table key.
     ///
     /// By using this, a crate can have multiple versions of the same dependency.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
 }
 
@@ -1153,7 +1162,7 @@ pub struct DependencyDetail {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct InheritedDependencyDetail {
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub features: Vec<String>,
 
     #[serde(default, skip_serializing_if = "is_false")]
@@ -1723,7 +1732,7 @@ pub enum Resolver {
 
 impl Display for Resolver {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
+        f.write_str(match self {
             Resolver::V1 => "1",
             Resolver::V2 => "2",
         })

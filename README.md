@@ -8,5 +8,4 @@ To get started, see [`Manifest::from_slice`][docs].
 
 [docs]: https://docs.rs/cargo_toml/latest/cargo_toml/struct.Manifest.html#method.from_slice
 
-Additionally, this crate supports basic post-processing of the data to emulate Cargo's `autobins` feature, which sets manifest defaults based on presence of files on disk (other non-disk data sources are also supported).
-
+Additionally, this crate supports post-processing of the data to emulate Cargo's workspace inheritance and `autobins` features. It supports files on disk as well as other non-disk data sources.

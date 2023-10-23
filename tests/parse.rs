@@ -248,3 +248,10 @@ fn renamed_lib() {
     let lib = m.lib.as_ref().unwrap();
     assert_eq!("librenamed", lib.name.as_ref().unwrap());
 }
+
+#[test]
+fn unstable() {
+    let m = Manifest::from_slice(&read("tests/unstable/Cargo.toml").unwrap()).unwrap();
+    let dependency = &m.dependencies.get("foo").unwrap().detail().unwrap();
+    assert_eq!(dependency.unstable.get("artifact"), Some(&toml::Value::String("bin".into())));
+}

@@ -109,7 +109,7 @@ pub struct Manifest<Metadata = Value> {
 }
 
 /// A manifest can contain both a package and workspace-wide properties
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct Workspace<Metadata = Value> {
     /// Relative paths of crates in here
@@ -957,7 +957,7 @@ impl Default for Product {
 }
 
 /// Dependencies that are platform-specific or enabled through custom `cfg()`.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Target {
     /// platform-specific normal deps
@@ -974,7 +974,7 @@ pub struct Target {
 /// Dependency definition. Note that this struct doesn't carry it's key/name, which you need to read from its section.
 ///
 /// It can be simple version number, or detailed settings, or inherited.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Dependency {
     /// Version
@@ -1095,7 +1095,7 @@ impl Dependency {
 }
 
 /// When definition of a dependency is more than just a version string.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
     /// Semver requirement. Note that a plain version number implies this version *or newer* compatible one.
@@ -1155,6 +1155,10 @@ pub struct DependencyDetail {
     /// By using this, a crate can have multiple versions of the same dependency.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
+
+    /// Contains the remaining unstable keys and values for the dependency.
+    #[serde(flatten)]
+    pub unstable: HashMap<String, Value>
 }
 
 /// When a dependency is defined as `{ workspace = true }`,

@@ -12,7 +12,7 @@
 //! The crate has methods for processing this information, but you will need to write some glue code to obtain it. See [`Manifest::complete_from_path_and_workspace`].
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet};
 use std::convert::TryFrom;
 use std::fmt::Display;
 use std::mem::take;
@@ -674,7 +674,7 @@ pub struct Profiles {
 
     /// User-suppiled for `cargo --profile=name`
     #[serde(flatten)]
-    pub custom: HashMap<String, Profile>,
+    pub custom: BTreeMap<String, Profile>,
 }
 
 impl Profiles {
@@ -1158,7 +1158,7 @@ pub struct DependencyDetail {
 
     /// Contains the remaining unstable keys and values for the dependency.
     #[serde(flatten)]
-    pub unstable: HashMap<String, Value>
+    pub unstable: BTreeMap<String, Value>
 }
 
 /// When a dependency is defined as `{ workspace = true }`,

@@ -333,7 +333,10 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         self.complete_from_abstract_filesystem_inner(&fs)
     }
 
-    fn needs_workspace_inheritance(&self) -> bool {
+    /// If `true`, some fields are unavailable. If `false`, it's fully usable as-is.
+    ///
+    /// It is `false` in manifests that use workspace inheritance, but had their data completed from the root manifest already.
+    pub fn needs_workspace_inheritance(&self) -> bool {
         self.package.as_ref().map_or(false, Package::needs_workspace_inheritance) ||
         self.dependencies.values()
             .chain(self.build_dependencies.values())
@@ -1487,6 +1490,9 @@ impl<Metadata> Package<Metadata> {
         &self.name
     }
 
+    /// If `true`, some fields are unavailable.
+    ///
+    /// It is `false` in manifests that use inheritance, but had their data completed from the root manifest already.
     fn needs_workspace_inheritance(&self) -> bool {
         !(self.authors.is_set() &&
         self.categories.is_set() &&

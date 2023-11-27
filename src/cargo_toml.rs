@@ -999,6 +999,7 @@ impl Dependency {
 
     /// Panics if inherited value is not available
     #[inline]
+    #[track_caller]
     pub fn detail_mut(&mut self) -> &mut DependencyDetail {
         match self {
             Dependency::Detailed(d) => d,

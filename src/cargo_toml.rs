@@ -1099,7 +1099,7 @@ impl Dependency {
 }
 
 /// When definition of a dependency is more than just a version string.
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct DependencyDetail {
     /// Semver requirement. Note that a plain version number implies this version *or newer* compatible one.
@@ -1163,6 +1163,27 @@ pub struct DependencyDetail {
     /// Contains the remaining unstable keys and values for the dependency.
     #[serde(flatten)]
     pub unstable: BTreeMap<String, Value>
+}
+
+impl Default for DependencyDetail {
+    fn default() -> Self {
+        DependencyDetail {
+            version: None,
+            registry: None,
+            registry_index: None,
+            path: None,
+            inherited: false,
+            git: None,
+            branch: None,
+            tag: None,
+            rev: None,
+            features: Vec::new(),
+            optional: false,
+            default_features: true, // != bool::default()
+            package: None,
+            unstable: BTreeMap::new(),
+        }
+    }
 }
 
 /// When a dependency is defined as `{ workspace = true }`,

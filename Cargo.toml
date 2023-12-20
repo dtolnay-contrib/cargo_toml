@@ -1,10 +1,10 @@
 [package]
-version = "0.17.2"
+version = "0.18.0"
 edition = "2021"
 name = "cargo_toml"
 authors = ["Kornel <kornel@geekhood.net>"]
 description = "`Cargo.toml` struct definitions for parsing with Serde"
-keywords = ["cargo", "metadata", "struct", "toml", "serde"]
+keywords = ["cargo", "metadata", "schema", "struct", "serde"]
 categories = ["rust-patterns", "parser-implementations"]
 homepage = "https://lib.rs/cargo_toml"
 repository = "https://gitlab.com/lib.rs/cargo_toml"

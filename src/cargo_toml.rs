@@ -864,12 +864,16 @@ pub struct Profile {
     pub strip: Option<StripSetting>,
 
     /// Profile overrides for dependencies, `*` is special.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub package: BTreeMap<String, Value>,
 
     /// Profile overrides for build dependencies, `*` is special.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_override: Option<Value>,
+
+    /// Only relevant for non-standard profiles
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inherits: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

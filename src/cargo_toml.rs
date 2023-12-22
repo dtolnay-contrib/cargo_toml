@@ -1233,6 +1233,7 @@ pub struct Package<Metadata = Value> {
     pub rust_version: Option<Inheritable<String>>,
 
     /// Must parse as semver, e.g. "1.9.0"
+    #[serde(default = "default_version")]
     pub version: Inheritable<String>,
 
     /// Build script definition
@@ -1666,6 +1667,10 @@ where
     D: Deserializer<'de>,
 {
     Ok(Deserialize::deserialize(deserializer).unwrap_or_default())
+}
+
+fn default_version() -> Inheritable<String> {
+    Inheritable::Set("0.0.0".into())
 }
 
 /// `[badges]` section of `Cargo.toml`, deprecated by crates-io except `maintenance`.

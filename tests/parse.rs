@@ -254,4 +254,6 @@ fn unstable() {
     let m = Manifest::from_slice(&read("tests/unstable/Cargo.toml").unwrap()).unwrap();
     let dependency = &m.dependencies.get("foo").unwrap().detail().unwrap();
     assert_eq!(dependency.unstable.get("artifact"), Some(&toml::Value::String("bin".into())));
+
+    assert_eq!("0.0.0", m.package().version());
 }

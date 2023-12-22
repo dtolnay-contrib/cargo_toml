@@ -1628,6 +1628,20 @@ impl PartialEq<bool> for Publish {
     }
 }
 
+impl PartialEq<bool> for &Publish {
+    #[inline]
+    fn eq(&self, b: &bool) -> bool {
+        b.eq(*self)
+    }
+}
+
+impl PartialEq<&Publish> for bool {
+    #[inline]
+    fn eq(&self, b: &&Publish) -> bool {
+        (*self).eq(*b)
+    }
+}
+
 /// In badges section of Cargo.toml
 ///
 /// Mostly obsolete.

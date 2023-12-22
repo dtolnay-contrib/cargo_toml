@@ -270,7 +270,15 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     #[inline(never)]
     fn from_slice_with_metadata_str(cargo_toml_content: &str) -> Result<Self, Error> {
         let mut manifest: Self = toml::from_str(cargo_toml_content)?;
-        if manifest.package.is_none() && manifest.workspace.is_none() {
+
+        if let Some(package) = &mut manifest.package {
+            // This is a clumsy implementation of Cargo's rule that missing version defaults publish to false.
+            // Serde just doesn't support such relationship for default field values, so this will be incorrect
+            // for explicit `version = "0.0.0"` and `publish = true`.
+            if package.version.get().map_or(false, |v| v == "0.0.0") && package.publish.get().map_or(false, |p| p.is_default()) {
+                package.publish = Inheritable::Set(Publish::Flag(false));
+            }
+        } else if manifest.package.is_none() && manifest.workspace.is_none() {
             // Some old crates lack the `[package]` header
             let val: Value = toml::from_str(cargo_toml_content)?;
             if let Some(project) = val.get("project") {

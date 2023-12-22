@@ -256,4 +256,5 @@ fn unstable() {
     assert_eq!(dependency.unstable.get("artifact"), Some(&toml::Value::String("bin".into())));
 
     assert_eq!("0.0.0", m.package().version());
+    assert_eq!(false, m.package().publish());
 }

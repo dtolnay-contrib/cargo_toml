@@ -17,6 +17,10 @@ rust-version = "1.66"
 name = "cargo_toml"
 path = "src/cargo_toml.rs"
 
+[features]
+# Helper for processing the `[features]` section
+features = []
+
 [dependencies]
 serde = { version = "1.0.152", features = ["derive"] }
 toml = "0.8"
@@ -26,3 +30,8 @@ maintenance = { status = "actively-developed" }
 
 [package.metadata.release]
 tag-prefix=""
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+all-features = true
+rustdoc-args = ["--cfg=docsrs", "--generate-link-to-definition"]

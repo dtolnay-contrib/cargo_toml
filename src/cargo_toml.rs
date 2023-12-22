@@ -1,4 +1,6 @@
 #![forbid(unsafe_code)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! This crate defines `struct`s that can be deserialized with Serde
 //! to load and inspect `Cargo.toml` metadata.
 //!
@@ -35,6 +37,10 @@ mod inheritable;
 pub use crate::afs::*;
 pub use crate::error::Error;
 pub use crate::inheritable::Inheritable;
+
+#[cfg(feature = "features")]
+#[cfg_attr(docsrs, doc(cfg(feature = "features")))]
+pub mod features;
 
 /// The top-level `Cargo.toml` structure. **This is the main type in this library.**
 ///

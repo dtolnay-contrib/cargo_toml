@@ -252,20 +252,26 @@ impl Manifest<Value> {
     #[inline(always)]
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(cargo_toml_content: &str) -> Result<Self, Error> {
-        Self::from_slice_with_metadata(cargo_toml_content.as_bytes())
+        Self::from_slice_with_metadata_str(cargo_toml_content)
     }
 }
 
 impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
+
     /// Parse `Cargo.toml`, and parse its `[package.metadata]` into a custom Serde-compatible type.
     ///
     /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data.
+    #[inline]
     pub fn from_slice_with_metadata(cargo_toml_content: &[u8]) -> Result<Self, Error> {
         let cargo_toml_content = std::str::from_utf8(cargo_toml_content).map_err(|_| Error::Other("utf8"))?;
+        Self::from_slice_with_metadata_str(cargo_toml_content)
+    }
+
+    #[inline(never)]
+    fn from_slice_with_metadata_str(cargo_toml_content: &str) -> Result<Self, Error> {
         let mut manifest: Self = toml::from_str(cargo_toml_content)?;
         if manifest.package.is_none() && manifest.workspace.is_none() {
             // Some old crates lack the `[package]` header
-
             let val: Value = toml::from_str(cargo_toml_content)?;
             if let Some(project) = val.get("project") {
                 manifest.package = Some(project.clone().try_into()?);
@@ -281,8 +287,8 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
     /// Calls [`Manifest::complete_from_path`]
     pub fn from_path_with_metadata<P: AsRef<Path>>(cargo_toml_path: P) -> Result<Self, Error> {
         let cargo_toml_path = cargo_toml_path.as_ref();
-        let cargo_toml_content = fs::read(cargo_toml_path)?;
-        let mut manifest = Self::from_slice_with_metadata(&cargo_toml_content)?;
+        let cargo_toml_content = fs::read_to_string(cargo_toml_path)?;
+        let mut manifest = Self::from_slice_with_metadata_str(&cargo_toml_content)?;
         manifest.complete_from_path(cargo_toml_path)?;
         Ok(manifest)
     }

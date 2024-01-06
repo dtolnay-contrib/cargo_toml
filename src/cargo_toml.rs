@@ -300,7 +300,9 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
         manifest.complete_from_path(cargo_toml_path)?;
         Ok(manifest)
     }
+}
 
+impl<Metadata> Manifest<Metadata> {
     /// `Cargo.toml` doesn't contain explicit information about `[lib]` and `[[bin]]`,
     /// which are inferred based on files on disk.
     ///

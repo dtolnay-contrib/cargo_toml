@@ -1000,11 +1000,12 @@ pub struct Target {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Dependency {
-    /// Version
+    /// Version requirement (e.g. `^1.5`)
     Simple(String),
     /// Incomplete data
     Inherited(InheritedDependencyDetail), // order is important for serde
-    Detailed(DependencyDetail),
+    /// `{ version = "^1.5", features = ["a", "b"] }` etc.
+    Detailed(Box<DependencyDetail>),
 }
 
 impl Dependency {
@@ -1024,10 +1025,10 @@ impl Dependency {
         match self {
             Dependency::Detailed(d) => d,
             Dependency::Simple(ver) => {
-                *self = Dependency::Detailed(DependencyDetail {
+                *self = Dependency::Detailed(Box::new(DependencyDetail {
                     version: Some(ver.clone()),
                     ..Default::default()
-                });
+                }));
                 match self {
                     Dependency::Detailed(d) => d,
                     _ => unreachable!(),

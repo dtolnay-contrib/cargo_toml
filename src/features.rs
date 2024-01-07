@@ -68,12 +68,6 @@ impl<'a> Feature<'a> {
         self.enabled_by.iter().copied().filter(|&e| e != "default")
     }
 
-    #[inline]
-    #[must_use]
-    pub fn is_enabled_by_default(&self) -> bool {
-        self.enabled_by.contains("default")
-    }
-
     /// Is any feature using this one?
     #[inline]
     #[must_use]
@@ -88,14 +82,14 @@ pub struct FeatureDependencyDetail<'dep> {
     pub is_optional: bool,
     /// If it's enabled by default, other targets are ignored and this is empty
     pub only_for_targets: BTreeSet<&'dep str>,
+    /// Details about this dependency
+    pub dep: &'dep Dependency,
 }
 
 /// A dependency referenced by a feature
 pub struct FeatureDependency<'dep> {
     /// Actual crate of this dependency. Note that multiple dependencies can be the same crate, in different versions.
     pub crate_name: &'dep str,
-    /// Details about this dependency
-    pub dep: &'dep Dependency,
 
     /// At least one of these will be set
     pub normal: Option<FeatureDependencyDetail<'dep>>,
@@ -104,6 +98,24 @@ pub struct FeatureDependency<'dep> {
 }
 
 impl<'dep> FeatureDependency<'dep> {
+    #[inline]
+    #[must_use]
+    pub fn dep(&self) -> &'dep Dependency {
+        self.detail().0.dep
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn detail(&self) -> (&FeatureDependencyDetail<'dep>, Kind) {
+        [
+            (self.normal.as_ref(), Kind::Normal),
+            (self.build.as_ref(), Kind::Build),
+            (self.dev.as_ref(), Kind::Dev)
+        ].into_iter()
+        .find_map(|(detail, kind)| Some((detail?, kind)))
+        .unwrap()
+    }
+
     #[inline]
     #[must_use]
     fn get_mut_entry(&mut self, kind: Kind) -> &mut Option<FeatureDependencyDetail<'dep>> {
@@ -208,7 +220,7 @@ pub struct ParseDependency<'a, 'tmp> {
     pub dep: &'tmp Dependency,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Kind {
     Normal,
     Dev,
@@ -278,9 +290,8 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         if !is_optional && named_using_dep_syntax.is_none() && matches!(entry, Entry::Vacant(_)) {
             return;
         }
-        let entry = entry.or_insert_with(|| FeatureDependency {
+        let entry = entry.or_insert_with(move || FeatureDependency {
             crate_name: dep.package().unwrap_or(key),
-            dep,
             normal: None,
             build: None,
             dev: None,
@@ -297,11 +308,13 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                     out.only_for_targets.clear();
                     if !is_optional && out.is_optional {
                         out.is_optional = false;
+                        out.dep = dep;
                     }
                 }
             },
             out @ None => {
                 *out = Some(FeatureDependencyDetail {
+                    dep,
                     is_optional,
                     // if creating, this is the first time seeing the dep, so it is target-specific, since general deps were processed earlier
                     only_for_targets: only_for_target.into_iter().collect(),

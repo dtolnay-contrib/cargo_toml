@@ -25,8 +25,12 @@ pub struct Resolver<'config, Hasher = RandomState> {
 /// The extra `Hasher` arg is for optionally using [`ahash`](https://lib.rs/ahash).
 pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     /// All features, resolved and normalized
+    ///
+    /// Default features are literally under the "default" key.
     pub features: HashMap<&'manifest str, Feature<'manifest>, Hasher>,
-    /// Dependencies referenced by the features
+    /// Dependencies referenced by the features, keyed by dependencies' name/identifier in TOML (that's not always the crate name)
+    ///
+    /// This doesn't include *all* dependencies. Dependencies unaffected by feature selection are skipped.
     pub dependencies: HashMap<&'deps str, FeatureDependency<'deps>, Hasher>,
     /// True if there were features with names staring with `_` and were merged into other features
     ///
@@ -51,21 +55,41 @@ pub struct Feature<'a> {
     /// Name of the feature
     pub key: &'a str,
     /// Deps by their manifest key (the key isn't always the same as the crate name)
+    ///
+    /// This set is shallow, see [`Feature::enables_recursive`].
     pub enables_deps: BTreeMap<&'a str, DepAction<'a>>,
     /// Enables these explicitly named features
+    ///
+    /// This set is shallow, see [`Feature::enables_recursive`].
     pub enables_features: BTreeSet<&'a str>,
+
     /// Keys of other features that enable this feature (this is shallow, not recursive)
     pub enabled_by: BTreeSet<&'a str>,
 
-    /// Names of binaries that have `required-features = [this feature]`
+    /// Names of binaries that have `required-features = [this feature]` (this is shallow, not recursive)
     pub required_by_bins: Vec<&'a str>,
 
     /// If true, it's from `[features]`. If false, it's from `[dependencies]`.
+    ///
+    /// If it's not explicit, and `is_referenced() == true`, it's probably a mistake and wasn't supposed to be a feature.
+    /// See `is_user_facing`.
     pub explicit: bool,
 }
 
+/// Outer key is the dependency key/name, the `Vec` contains feature names
+pub type DependenciesEnabledByFeatures<'a, S> = HashMap<&'a str, Vec<(&'a str, &'a DepAction<'a>)>, S>;
+
 impl<'a> Feature<'a> {
-    /// `enabled_by` except `"default"`
+    /// Heuristic whether this feature should be shown to users
+    ///
+    /// Skips underscore-prefixed features, and possibly unintended features implied by optional dependencies
+    #[inline]
+    #[must_use]
+    pub fn is_user_facing(&self) -> bool {
+        (self.explicit || !self.is_referenced()) && !self.key.starts_with('_')
+    }
+
+    /// Just `enabled_by` except the "default" feature
     #[inline]
     #[must_use]
     pub fn non_default_enabled_by(&self) -> impl Iterator<Item = &str> {
@@ -77,6 +101,32 @@ impl<'a> Feature<'a> {
     #[must_use]
     pub fn is_referenced(&self) -> bool {
         !self.enabled_by.is_empty()
+    }
+
+    /// Finds all features and dependencies that this feature enables, recursively and exhaustively
+    ///
+    /// The first HashMap is features by their key, the second is dependencies by their key
+    #[inline]
+    #[must_use]
+    pub fn enables_recursive<S: BuildHasher + Default>(&'a self, features: &'a HashMap<&'a str, Feature<'a>, S>) -> (HashMap<&'a str, &'a Feature<'a>, S>, DependenciesEnabledByFeatures<'a, S>) {
+        let mut features_set = HashMap::with_capacity_and_hasher(self.enabled_by.len() + self.enabled_by.len()/2, S::default());
+        let mut deps_set = HashMap::with_capacity_and_hasher(self.enables_deps.len() + self.enables_deps.len()/2, S::default());
+        self.add_to_set(features, &mut features_set, &mut deps_set);
+        (features_set, deps_set)
+    }
+
+    #[inline(never)]
+    fn add_to_set<S: BuildHasher>(&'a self, features: &'a HashMap<&'a str, Feature<'a>, S>, features_set: &mut HashMap<&'a str, &'a Feature<'a>, S>, deps_set: &mut DependenciesEnabledByFeatures<'a, S>) {
+        if features_set.insert(self.key, self).is_none() {
+            for (&key, action) in &self.enables_deps {
+                deps_set.entry(key).or_insert_with(Vec::new).push((self.key, action));
+            }
+            for &key in &self.enables_features {
+                if let Some(f) = features.get(key) {
+                    f.add_to_set(features, features_set, deps_set);
+                }
+            }
+        }
     }
 }
 

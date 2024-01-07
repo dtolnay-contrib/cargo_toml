@@ -172,6 +172,7 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
 
         Self::set_required_by_bins(&mut features, &manifest.bin, manifest.package().name());
 
+        Self::remove_redundant_dep_action_features(&mut features, &dependencies);
         Self::set_enabled_by(&mut features);
         let removed_hidden_features = self.remove_hidden_features(&mut features);
 
@@ -199,6 +200,7 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
             Self::add_dependency(&mut features, &mut dependencies, named_using_dep_syntax.get(dep.key).copied(), dep.kind, dep.target, dep.key, dep.dep);
         }
 
+        Self::remove_redundant_dep_action_features(&mut features, &dependencies);
         Self::set_enabled_by(&mut features);
         let removed_hidden_features = self.remove_hidden_features(&mut features);
 
@@ -391,6 +393,21 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                 }
             }
         });
+    }
+
+    #[inline(never)]
+    fn remove_redundant_dep_action_features(features: &mut HashMap<&str, Feature<'_>, S>, dependencies: &HashMap<&str, FeatureDependency<'_>, S>) {
+        features.values_mut()
+            .flat_map(|f| &mut f.enables_deps)
+            .filter(|(_, action)| !action.dep_features.is_empty())
+            .for_each(|(dep_key, action)| {
+                if let Some(dep) = dependencies.get(dep_key).and_then(|d| d.dep().detail()) {
+                    action.dep_features.retain(move |&dep_f| {
+                        (!dep.default_features || dep_f != "default") &&
+                        !dep.features.iter().any(|k| k == dep_f)
+                    });
+                }
+            });
     }
 
     #[inline(never)]

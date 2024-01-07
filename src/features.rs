@@ -6,6 +6,10 @@ use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::hash::BuildHasher;
 use std::marker::PhantomData;
 
+/// Maximum number of features and dependencies, to protect against DoS
+/// crates.io limit is 300.
+const MAX_ITEMS: usize = 2048;
+
 /// Call [`features::Resolver::new()`](Resolver::new) to get started.
 ///
 /// The extra `Hasher` arg is for optionally using [`ahash`](https://lib.rs/ahash).
@@ -154,7 +158,7 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
     /// Parse features from a Cargo.toml manifest
     pub fn parse<M>(&self, manifest: &'manifest Manifest<M>) -> Features<'manifest, 'manifest, RandomState> {
         let mut features = Self::parse_features(
-            manifest.features.iter().take(1000),
+            manifest.features.iter().take(MAX_ITEMS),
             manifest.features.contains_key("default"),
         );
 
@@ -183,7 +187,7 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
     /// It won't fill in `required_by_bins` fields.
     pub fn parse_custom<'deps, S: BuildHasher>(&self, manifest_features: &'manifest HashMap<String, Vec<String>, S>, deps: impl Iterator<Item=ParseDependency<'manifest, 'deps>>) -> Features<'manifest, 'deps, RandomState> where 'manifest: 'deps {
         let mut features: HashMap<&'manifest str, Feature<'manifest>, _> = Self::parse_features(
-            manifest_features.iter().take(1000),
+            manifest_features.iter().take(MAX_ITEMS),
             manifest_features.contains_key("default"),
         );
 
@@ -242,7 +246,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         // coalesce dep_feature
         let mut enables_deps = BTreeMap::new();
         let mut enables_features = BTreeSet::new();
-        actions.iter().for_each(|action| {
+        actions.iter().take(MAX_ITEMS).for_each(|action| {
             let mut parts = action.splitn(2, '/');
             let mut atarget = parts.next().unwrap_or_default();
             let dep_feature = parts.next();
@@ -277,7 +281,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
     }
 
     fn add_implied_optional_deps(features: &mut HashMap<&'a str, Feature<'a>, S>, deps_for_features: &mut HashMap<&'a str, FeatureDependency<'a>, S>, crate_deps: &'a BTreeMap<String, Dependency>, named_using_dep_syntax: &HashMap<&str, bool, S>, dep_kind: Kind, only_for_target: Option<&'a str>) {
-        for (key, dep) in crate_deps.iter().take(1000) {
+        for (key, dep) in crate_deps.iter().take(MAX_ITEMS) {
             let key = key.as_str();
             Self::add_dependency(features, deps_for_features, named_using_dep_syntax.get(key).copied(), dep_kind, only_for_target, key, dep);
         }
@@ -328,7 +332,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         // We won't see optional build or dev dep feature, if there's normal non-optional dep. Not a big deal?
         // if we added one for normal, then keep adding build and dev.
         if is_optional && named_using_dep_syntax != Some(true) {
-            features.entry(key).or_insert_with(|| Feature {
+            features.entry(key).or_insert_with(move || Feature {
                 key,
                 enables_features: BTreeSet::default(),
                 enables_deps: BTreeMap::from_iter([(key, DepAction {
@@ -378,7 +382,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
 
     #[inline(never)]
     fn set_required_by_bins(features: &mut HashMap<&'a str, Feature<'a>, S>, bin: &'a [Product], package_name: &'a str) {
-        bin.iter().for_each(|bin| {
+        bin.iter().for_each(move |bin| {
             for f in &bin.required_features {
                 let bin_name = bin.name.as_deref().unwrap_or(package_name);
                 if let Some(f) = features.get_mut(f.as_str()) {
@@ -400,7 +404,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         });
 
         // TODO: resolve features recursively? ["enables_foo", "foo?/x"] may happen
-        all_enabled_by.into_iter().for_each(|(key, enabled_by)| {
+        all_enabled_by.into_iter().for_each(move |(key, enabled_by)| {
             if let Some(f) = features.get_mut(key) {
                 f.enabled_by = enabled_by;
             }
@@ -426,7 +430,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         let removed_hidden_features = !janky_features.is_empty();
 
         // remove __features
-        janky_features.into_iter().for_each(|(bad_feature, (bad_enables_features, bad_enabled_by))| {
+        janky_features.into_iter().for_each(move |(bad_feature, (bad_enables_features, bad_enabled_by))| {
             bad_enabled_by.iter().for_each(|&affected| {
                 if let Some(f) = features.get_mut(affected) {
                     f.enables_features.remove(bad_feature);

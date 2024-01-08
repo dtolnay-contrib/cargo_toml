@@ -23,7 +23,7 @@ pub trait AbstractFilesystem {
         Err(io::Error::new(io::ErrorKind::Unsupported, "AbstractFilesystem::read_root_workspace unimplemented"))
     }
 
-    /// The `rel_path_hint` may be specified explicitly by `package.workspace` (it may be relative like `"../", without `Cargo.toml`) or `None`,
+    /// The `rel_path_hint` may be specified explicitly by `package.workspace` (it may be relative like `"../"`, without `Cargo.toml`) or `None`,
     /// which means you have to search for workspace's `Cargo.toml` in parent directories.
     ///
     /// Read and parse the root workspace manifest TOML file and return the path it's been read from.

@@ -22,11 +22,16 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 pub use toml::Value;
 
-/// Dependencies. The keys in this map may not be crate names if `package` is used, but may be feature names if they're optional.
+/// Dependencies. The keys in this map are not always crate names, this can be overriden by the `package` field, and there may be multiple copies of the same crate.
+/// Optional dependencies may create implicit features, see the [`features`] module for dealing with this.
 pub type DepsSet = BTreeMap<String, Dependency>;
 /// Config target (see [`parse_cfg`](https://lib.rs/parse_cfg) crate) + deps for the target.
 pub type TargetDepsSet = BTreeMap<String, Target>;
-/// `[features]` section. `default` is special.
+/// The `[features]` section. This set may be incomplete!
+///
+/// The `default` is special, and there may be more features
+/// implied by optional dependencies.
+/// See the [`features`] module for more info.
 pub type FeatureSet = BTreeMap<String, Vec<String>>;
 /// Locally replace dependencies
 pub type PatchSet = BTreeMap<String, DepsSet>;
@@ -71,7 +76,14 @@ pub struct Manifest<Metadata = Value> {
     #[serde(default, skip_serializing_if = "TargetDepsSet::is_empty")]
     pub target: TargetDepsSet,
 
-    /// `[features]` section
+    /// The `[features]` section. This set may be incomplete!
+    ///
+    /// Optional dependencies may create implied Cargo features.
+    /// This features section also supports microsyntax with `dep:`, `/`, and `?`
+    /// for managing dependencies and their features.io
+    ///
+    /// This crate has an optional [`features`] module for dealing with this
+    /// complexity and getting the real list of features.
     #[serde(default, skip_serializing_if = "FeatureSet::is_empty")]
     pub features: FeatureSet,
 
@@ -958,7 +970,7 @@ pub struct Product {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub crate_type: Vec<String>,
 
-    /// The required-features field specifies which features the product needs in order to be built.
+    /// The `required-features` field specifies which features the product needs in order to be built.
     /// If any of the required features are not selected, the product will be skipped.
     /// This is only relevant for the `[[bin]]`, `[[bench]]`, `[[test]]`, and `[[example]]` sections,
     /// it has no effect on `[lib]`.
@@ -1056,7 +1068,7 @@ impl Dependency {
         }
     }
 
-    /// Enable extra features for this dep.
+    /// Enable extra features for this dep, in addition to the `default` features controlled via `default_features`.
     #[inline]
     #[must_use]
     pub fn req_features(&self) -> &[String] {
@@ -1067,7 +1079,8 @@ impl Dependency {
         }
     }
 
-    /// Is it optional. Note that optional deps can be used as features, unless features use `dep:`/`?` syntax for them..
+    /// Is it optional. Note that optional deps can be used as features, unless features use `dep:`/`?` syntax for them.
+    /// See the [`features`] module for more info.
     #[inline]
     #[must_use]
     pub fn optional(&self) -> bool {
@@ -1174,10 +1187,11 @@ pub struct DependencyDetail {
     /// NB: Not allowed at workspace level
     ///
     /// If not used with `dep:` or `?/` syntax in `[features]`, this also creates an implicit feature.
+    /// See the [`features`] module for more info.
     #[serde(default, skip_serializing_if = "is_false")]
     pub optional: bool,
 
-    /// Enable `default` features of the dependency.
+    /// Enable the `default` set of features of the dependency (enabled by default).
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub default_features: bool,
 

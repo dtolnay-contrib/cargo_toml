@@ -1,4 +1,4 @@
-//! Helper for parsing syntax of the `[features]` section
+//! Helper for parsing the microsyntax of the `[features]` section and computing implied features from optional dependencies.
 
 use crate::{Dependency, Manifest, Product, DepsSet, TargetDepsSet};
 use std::collections::hash_map::{Entry, RandomState};
@@ -29,9 +29,9 @@ pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     ///
     /// Default features are literally under the "default" key.
     pub features: HashMap<&'manifest str, Feature<'manifest>, Hasher>,
-    /// Dependencies referenced by the features, keyed by dependencies' name/identifier in TOML (that's not always the crate name)
+    /// FYI, dependencies referenced by the features, keyed by dependencies' name/identifier in TOML (that's not always the crate name)
     ///
-    /// This doesn't include *all* dependencies. Dependencies unaffected by feature selection are skipped.
+    /// This doesn't include *all* dependencies. Dependencies unaffected by any features selection are skipped.
     pub dependencies: HashMap<&'deps str, FeatureDependency<'deps>, Hasher>,
     /// True if there were features with names staring with `_` and were inlined and merged into other features
     ///
@@ -55,19 +55,22 @@ pub struct DepAction<'a> {
 pub struct Feature<'a> {
     /// Name of the feature
     pub key: &'a str,
-    /// Deps by their manifest key (the key isn't always the same as the crate name)
+    /// Deps this enables or modifies, by their manifest key (the key isn't always the same as the crate name)
     ///
-    /// This set is shallow, see [`Feature::enables_recursive`].
+    /// This set is shallow (this feature may also be enabling other features that enable more deps), see [`Feature::enables_recursive`].
     pub enables_deps: BTreeMap<&'a str, DepAction<'a>>,
     /// Enables these explicitly named features
     ///
-    /// This set is shallow, see [`Feature::enables_recursive`].
+    /// This set is shallow, and the features listed here may be enabling more features, see [`Feature::enables_recursive`].
+    /// Note that Cargo permits infinite loops (A enables B, B enables A).
     pub enables_features: BTreeSet<&'a str>,
 
-    /// Keys of other features that enable this feature (this is shallow, not recursive)
+    /// Keys of other features that directly enable this feature (this is shallow, not recursive)
     pub enabled_by: BTreeSet<&'a str>,
 
-    /// Names of binaries that have `required-features = [this feature]` (this is shallow, not recursive)
+    /// Names of binaries that mention this feature in their `required-features = [this feature]`
+    ///
+    /// Name of the default unnamed binary is set to the package name, and not normalized.
     pub required_by_bins: Vec<&'a str>,
 
     /// If true, it's from `[features]`. If false, it's from `[dependencies]`.
@@ -97,7 +100,7 @@ impl<'a> Feature<'a> {
         self.enabled_by.iter().copied().filter(|&e| e != "default")
     }
 
-    /// Is any feature using this one?
+    /// Is any other feature using this one?
     #[inline]
     #[must_use]
     pub fn is_referenced(&self) -> bool {
@@ -106,7 +109,7 @@ impl<'a> Feature<'a> {
 
     /// Finds all features and dependencies that this feature enables, recursively and exhaustively
     ///
-    /// The first HashMap is features by their key, the second is dependencies by their key
+    /// The first `HashMap` is features by their key, the second is dependencies by their key. It includes only dependencies changed by the features, not all crate dependencies.
     #[must_use]
     pub fn enables_recursive<S: BuildHasher + Default>(&'a self, features: &'a HashMap<&'a str, Feature<'a>, S>) -> (HashMap<&'a str, &'a Feature<'a>, S>, DependenciesEnabledByFeatures<'a, S>) {
         let mut features_set = HashMap::with_capacity_and_hasher(self.enabled_by.len() + self.enabled_by.len()/2, S::default());
@@ -120,7 +123,7 @@ impl<'a> Feature<'a> {
         if features_set.insert(self.key, self).is_none() {
             for (&dep_key, action) in &self.enables_deps {
                 if !action.is_conditional {
-                    deps_set.entry(dep_key).or_insert_with(Vec::new).push((self.key, action));
+                    deps_set.entry(dep_key).or_default().push((self.key, action));
                 }
             }
             for &key in &self.enables_features {
@@ -162,6 +165,7 @@ impl<'dep> FeatureDependency<'dep> {
         self.detail().0.dep
     }
 
+    /// Extra metadata for the most common usage (normal > build > dev) of this dependency
     #[inline]
     #[must_use]
     pub fn detail(&self) -> (&FeatureDependencyDetail<'dep>, Kind) {

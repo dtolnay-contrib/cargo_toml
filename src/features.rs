@@ -23,6 +23,7 @@ pub struct Resolver<'config, Hasher = RandomState> {
 /// It's a temporary struct that borrows from the manifest. Copy things out of this if lifetimes get in the way.
 ///
 /// The extra `Hasher` arg is for optionally using [`ahash`](https://lib.rs/ahash).
+#[derive(Debug)]
 pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     /// All features, resolved and normalized
     ///
@@ -32,21 +33,21 @@ pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     ///
     /// This doesn't include *all* dependencies. Dependencies unaffected by feature selection are skipped.
     pub dependencies: HashMap<&'deps str, FeatureDependency<'deps>, Hasher>,
-    /// True if there were features with names staring with `_` and were merged into other features
+    /// True if there were features with names staring with `_` and were inlined and merged into other features
     ///
     /// See arg of [`new_with_hasher_and_filter`](Resolver::new_with_hasher_and_filter) to disable removal.
     pub removed_hidden_features: bool,
 }
 
 /// How an enabled feature affects the dependency
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct DepAction<'a> {
     /// Uses `?` syntax, so it doesn't enable the depenency
     pub is_conditional: bool,
     /// Uses `dep:` or `?` syntax, so it doesn't imply a feature name
     pub is_dep_only: bool,
     /// Features of the dependency to enable (the text after slash, possibly aggregated from multiple items)
-    pub dep_features: Vec<&'a str>,
+    pub dep_features: BTreeSet<&'a str>,
 }
 
 /// A feature from `[features]` with all the details
@@ -106,7 +107,6 @@ impl<'a> Feature<'a> {
     /// Finds all features and dependencies that this feature enables, recursively and exhaustively
     ///
     /// The first HashMap is features by their key, the second is dependencies by their key
-    #[inline]
     #[must_use]
     pub fn enables_recursive<S: BuildHasher + Default>(&'a self, features: &'a HashMap<&'a str, Feature<'a>, S>) -> (HashMap<&'a str, &'a Feature<'a>, S>, DependenciesEnabledByFeatures<'a, S>) {
         let mut features_set = HashMap::with_capacity_and_hasher(self.enabled_by.len() + self.enabled_by.len()/2, S::default());
@@ -118,12 +118,14 @@ impl<'a> Feature<'a> {
     #[inline(never)]
     fn add_to_set<S: BuildHasher>(&'a self, features: &'a HashMap<&'a str, Feature<'a>, S>, features_set: &mut HashMap<&'a str, &'a Feature<'a>, S>, deps_set: &mut DependenciesEnabledByFeatures<'a, S>) {
         if features_set.insert(self.key, self).is_none() {
-            for (&key, action) in &self.enables_deps {
-                deps_set.entry(key).or_insert_with(Vec::new).push((self.key, action));
+            for (&dep_key, action) in &self.enables_deps {
+                if !action.is_conditional {
+                    deps_set.entry(dep_key).or_insert_with(Vec::new).push((self.key, action));
+                }
             }
             for &key in &self.enables_features {
-                if let Some(f) = features.get(key) {
-                    f.add_to_set(features, features_set, deps_set);
+                if let Some(feature) = features.get(key) {
+                    feature.add_to_set(features, features_set, deps_set);
                 }
             }
         }
@@ -131,6 +133,7 @@ impl<'a> Feature<'a> {
 }
 
 /// Extra info for dependency referenced by a feature
+#[derive(Debug)]
 pub struct FeatureDependencyDetail<'dep> {
     /// Features may refer to non-optional dependencies, only enable *their* features
     pub is_optional: bool,
@@ -141,6 +144,7 @@ pub struct FeatureDependencyDetail<'dep> {
 }
 
 /// A dependency referenced by a feature
+#[derive(Debug)]
 pub struct FeatureDependency<'dep> {
     /// Actual crate of this dependency. Note that multiple dependencies can be the same crate, in different versions.
     pub crate_name: &'dep str,
@@ -304,20 +308,21 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
             let dep_feature = parts.next();
 
             let is_dep_prefix = if let Some(k) = atarget.strip_prefix("dep:") { atarget = k; true } else { false };
-            let is_conditional = if let Some(k) = atarget.strip_suffix('?') { atarget = k; true  } else { false };
+            let is_conditional = if let Some(k) = atarget.strip_suffix('?') { atarget = k; true } else { false };
 
-            // dep-feature is old, doesn't actually mean it's dep:only!
-            let is_dep_only = is_dep_prefix || is_conditional;
+            // dep/feature is old, doesn't actually mean it's dep:only!
+            let is_dep_only = is_dep_prefix;
             if is_dep_only || dep_feature.is_some() {
                 let action = enables_deps.entry(atarget).or_insert(DepAction {
                     is_conditional,
                     is_dep_only,
-                    dep_features: vec![],
+                    dep_features: Default::default(),
                 });
                 if !is_conditional { action.is_conditional = false; }
-                if let Some(df) = dep_feature { action.dep_features.push(df); }
+                if is_dep_only { action.is_dep_only = true; }
+                if let Some(df) = dep_feature { action.dep_features.insert(df); }
             } else {
-                // dep/foo can be both
+                // dep/foo can be both, and missing enables_deps is added later after checking all for dep:
                 enables_features.insert(atarget);
             }
         });
@@ -390,7 +395,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                 enables_deps: BTreeMap::from_iter([(key, DepAction {
                     is_dep_only: false,
                     is_conditional: false,
-                    dep_features: vec![],
+                    dep_features: Default::default(),
                 })]),
                 explicit: false,
                 enabled_by: BTreeSet::new(), // will do later
@@ -407,7 +412,9 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
 
         features.values().for_each(|f| {
             f.enables_deps.iter().for_each(|(&dep_key, a)| {
-                named_using_dep_syntax.entry(dep_key).or_insert(a.is_dep_only);
+                named_using_dep_syntax.entry(dep_key)
+                    .and_modify(|v| *v |= a.is_dep_only)
+                    .or_insert(a.is_dep_only);
             });
         });
 
@@ -464,13 +471,14 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
     fn set_enabled_by(features: &mut HashMap<&'a str, Feature<'a>, S>) {
         let mut all_enabled_by = HashMap::<_, _, S>::default();
         features.iter().for_each(|(&feature_key, f)| {
-            f.enables_features.iter().copied()
-                .for_each(|action_key| {
-                    all_enabled_by.entry(action_key).or_insert_with(BTreeSet::new).insert(feature_key);
-                });
+            f.enables_features.iter().copied().for_each(|action_key| if action_key != feature_key {
+                all_enabled_by.entry(action_key).or_insert_with(BTreeSet::new).insert(feature_key);
+            });
+            f.enables_deps.iter().for_each(|(&action_key, action)| if !action.is_conditional && !action.is_dep_only && action_key != feature_key {
+                all_enabled_by.entry(action_key).or_insert_with(BTreeSet::new).insert(feature_key);
+            });
         });
 
-        // TODO: resolve features recursively? ["enables_foo", "foo?/x"] may happen
         all_enabled_by.into_iter().for_each(move |(key, enabled_by)| {
             if let Some(f) = features.get_mut(key) {
                 f.enabled_by = enabled_by;
@@ -478,40 +486,166 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         });
     }
 
-    /// find `__features`
+    /// find `__features` and inline them
     #[inline(never)]
-    fn remove_hidden_features(&self, features: &mut HashMap<&str, Feature<'_>, S>) -> bool {
-        let mut janky_features = HashMap::<_, _, S>::default();
-        features.retain(|&k, f| {
-            let remove = k.starts_with('_') &&
-                f.enables_deps.is_empty() && // can't be bothered to merge actions properly
-                !self.always_keep.map_or(false, |cb| (cb)(k)) && // if user thinks that is useful info
-                !f.enables_features.iter().any(|k| k.starts_with('_')); // recursive bad features are too annoying to remove
-            if remove {
-                janky_features.insert(k, (std::mem::take(&mut f.enables_features), std::mem::take(&mut f.enabled_by))); false
-            } else {
-                true
-            }
-        });
+    fn remove_hidden_features(&self, features: &mut HashMap<&'a str, Feature<'a>, S>) -> bool {
+        let features_to_remove: BTreeSet<_> = features.keys().copied().filter(|&k| {
+            k.starts_with('_') && !self.always_keep.map_or(false, |cb| (cb)(k)) // if user thinks that is useful info
+        }).collect();
 
-        let removed_hidden_features = !janky_features.is_empty();
+        if features_to_remove.is_empty() {
+            return false;
+        }
 
-        // remove __features
-        janky_features.into_iter().for_each(move |(bad_feature, (bad_enables_features, bad_enabled_by))| {
-            bad_enabled_by.iter().for_each(|&affected| {
-                if let Some(f) = features.get_mut(affected) {
-                    f.enables_features.remove(bad_feature);
-                    f.enables_features.extend(&bad_enables_features);
-                    f.enables_deps.remove(bad_feature);
+        features_to_remove.into_iter().for_each(|key| {
+            let Some(janky) = features.remove(key) else { return };
+
+            janky.enabled_by.iter().for_each(|&parent_key| if let Some(parent) = features.get_mut(parent_key) {
+                parent.enabled_by.remove(janky.key); // just in case it's circular
+
+                // the filter tries to avoid adding new redundant enables_features, but it's order-dependent
+                parent.enables_features.extend(&janky.enables_features);
+                parent.enables_features.remove(janky.key);
+
+                janky.enables_deps.iter().for_each(|(&k, ja)| {
+                    parent.enables_deps.entry(k)
+                        .and_modify(|old| {
+                            if !ja.is_conditional { old.is_conditional = false; }
+                            if ja.is_dep_only { old.is_dep_only = true; }
+                            old.dep_features.extend(&ja.dep_features);
+                        })
+                        .or_insert_with(|| ja.clone());
+                });
+            });
+
+            janky.enables_features.iter().for_each(|&f| {
+                if let Some(child) = features.get_mut(f) {
+                    // this list is sometimes a bit redundant,
+                    // but the hidden feature cleanup is not recursive, so it needs to contain all possible places
+                    child.enabled_by.extend(&janky.enabled_by);
+                    child.enabled_by.remove(janky.key);
+
+                    janky.required_by_bins.iter().take(10).for_each(|&bin| {
+                        if !child.required_by_bins.contains(&bin) {
+                            child.required_by_bins.push(bin);
+                        }
+                    });
                 }
             });
-            bad_enables_features.into_iter().for_each(|target| {
-                if let Some(f) = features.get_mut(target) {
-                    f.enabled_by.remove(bad_feature);
-                    f.enabled_by.extend(&bad_enabled_by);
+
+            janky.enables_deps.iter().filter(|&(k, a)| !a.is_dep_only && !janky.enables_features.contains(k)).for_each(|(&d, _)| {
+                if let Some(d) = features.get_mut(d) {
+                    d.enabled_by.extend(&janky.enabled_by);
+                    d.enabled_by.remove(janky.key);
                 }
             });
         });
-        removed_hidden_features
+        true
     }
 }
+
+#[test]
+fn features_test() {
+    let m = crate::Manifest::from_str(r#"
+[package]
+name = "foo"
+
+[[bin]]
+name = "thebin"
+required-features = ["__hidden2", "loop3"]
+
+[dependencies]
+not_optional = { path = "..", package = "actual_pkg", features = ["f1", "f2"] }
+depend = { version = "1.0.0", package = "actual_pkg", optional = true, default-features = false }
+implied_standalone = { version = "1.0.0", optional = true }
+implied_referenced = { version = "1.0.0", optional = true }
+not_relevant = "2"
+feature_for_hidden = { version = "2", optional = true }
+__hidden_dep = { version = "2", optional = true }
+
+[build-dependencies]
+a_dep = { version = "1.0.0", optional = true }
+
+[features]
+default = ["x"]
+a = []
+b = ["a", "implied_referenced/with_feature", "depend/default", "depend/default"]
+c = ["__hidden"]
+x = ["__hidden", "c", "not_optional/f2", "not_optional/f3", "not_optional/default"]
+__hidden = ["__hidden2"]
+__hidden2 = ["dep:depend", "depend/with_x", "depend?/with_y", "__hidden0"]
+__hidden0 = ["a"]
+enables_hidden = ["__hidden0"]
+__feature_for_hidden = ["feature_for_hidden"]
+
+loop1 = ["loop2"]
+loop2 = ["loop3", "a_dep?/maybe", "a_dep?/maybe_too", "depend/with_loop"]
+loop3 = ["loop1", "implied_referenced/from_loop_3"]
+
+    "#).unwrap();
+    let r = Resolver::new().parse(&m);
+    let f = r.features;
+    let d = r.dependencies;
+
+    assert!(r.removed_hidden_features);
+
+    // __hidden completely removed
+    assert!(!f.iter().any(|(&k, f)| {
+        k.starts_with('_') ||
+        f.enables_features.iter().any(|&k| k.starts_with('_')) ||
+        f.enables_deps.iter().any(|(&k, _)| k.starts_with('_')) ||
+        f.enabled_by.iter().any(|&k| k.starts_with('_'))
+    }));
+
+    assert!(!d.keys().any(|&k| k.starts_with('_') && k != "__hidden_dep"));
+    assert!(f.get("__hidden_dep").is_none());
+
+    assert_eq!(f.len(), 13);
+    assert!(f.get("depend").is_none());
+
+    assert_eq!(d.len(), 7);
+    assert!(d.get("not_relevant").is_none());
+    assert!(f.get("not_relevant").is_none());
+
+    assert!(f.get("not_optional").is_none());
+    assert_eq!(d["not_optional"].crate_name, "actual_pkg");
+
+    assert_eq!(d["implied_standalone"].crate_name, "implied_standalone");
+    assert!(d["implied_standalone"].normal.as_ref().unwrap().is_optional);
+    assert!(d["a_dep"].normal.is_none());
+    assert!(d["a_dep"].build.is_some());
+    assert!(!f["implied_standalone"].explicit);
+    assert!(!f["implied_referenced"].explicit);
+    assert!(!f["a_dep"].explicit);
+    assert!(!f["feature_for_hidden"].is_referenced());
+
+    assert_eq!(f["x"].enables_deps.keys().copied().collect::<Vec<_>>(), &["depend", "not_optional"]);
+    assert_eq!(f["x"].enables_features.iter().copied().collect::<Vec<_>>(), &["a", "c"]);
+
+    assert_eq!(f["a"].enabled_by.iter().copied().collect::<Vec<_>>(), &["b", "c", "enables_hidden", "x"]);
+    assert!(f["a"].enables_deps.is_empty());
+    assert!(f["a"].enables_features.is_empty());
+
+    assert_eq!(f["loop1"].enabled_by.iter().copied().collect::<Vec<_>>(), &["loop3"]);
+    assert_eq!(f["loop2"].enabled_by.iter().copied().collect::<Vec<_>>(), &["loop1"]);
+    assert_eq!(f["loop3"].enabled_by.iter().copied().collect::<Vec<_>>(), &["loop2"]);
+
+    assert!(f["loop1"].enables_deps.is_empty());
+    assert_eq!(f["loop2"].enables_deps.keys().copied().collect::<Vec<_>>(), &["a_dep", "depend"]);
+    assert!(f["loop2"].enables_deps["a_dep"].is_conditional);
+    assert!(!f["loop2"].enables_deps["depend"].is_conditional);
+    assert_eq!(f["loop3"].enables_deps.keys().copied().collect::<Vec<_>>(), &["implied_referenced"]);
+
+    assert_eq!(f["loop1"].enables_features.iter().copied().collect::<Vec<_>>(), &["loop2"]);
+    assert_eq!(f["loop2"].enables_features.iter().copied().collect::<Vec<_>>(), &["loop3"]);
+    assert_eq!(f["loop3"].enables_features.iter().copied().collect::<Vec<_>>(), &["loop1"]);
+
+    let (rf, rd) = f["loop1"].enables_recursive(&f);
+    assert_eq!(rf["loop1"].key, "loop1");
+    assert_eq!(rf["loop2"].key, "loop2");
+    assert_eq!(rf["loop3"].key, "loop3");
+    assert_eq!(rd["implied_referenced"][0].0, "loop3");
+    assert_eq!(rd["depend"][0].0, "loop2");
+    assert!(rd.get("a_dep").is_none());
+}
+

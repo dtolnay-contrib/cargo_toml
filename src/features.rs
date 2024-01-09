@@ -24,6 +24,7 @@ pub struct Resolver<'config, Hasher = RandomState> {
 ///
 /// The extra `Hasher` arg is for optionally using [`ahash`](https://lib.rs/ahash).
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     /// All features, resolved and normalized
     ///
@@ -41,6 +42,7 @@ pub struct Features<'manifest, 'deps, Hasher = RandomState> {
 
 /// How an enabled feature affects the dependency
 #[derive(Debug, PartialEq, Clone)]
+#[non_exhaustive]
 pub struct DepAction<'a> {
     /// Uses `?` syntax, so it doesn't enable the depenency
     pub is_conditional: bool,
@@ -51,7 +53,8 @@ pub struct DepAction<'a> {
 }
 
 /// A feature from `[features]` with all the details
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Feature<'a> {
     /// Name of the feature
     pub key: &'a str,
@@ -136,7 +139,8 @@ impl<'a> Feature<'a> {
 }
 
 /// Extra info for dependency referenced by a feature
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct FeatureDependencyDetail<'dep> {
     /// Features may refer to non-optional dependencies, only enable *their* features
     pub is_optional: bool,
@@ -148,6 +152,7 @@ pub struct FeatureDependencyDetail<'dep> {
 
 /// A dependency referenced by a feature
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct FeatureDependency<'dep> {
     /// Actual crate of this dependency. Note that multiple dependencies can be the same crate, in different versions.
     pub crate_name: &'dep str,
@@ -274,6 +279,7 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
 ///
 /// Note about lifetimes: it's not possible to make `&Dependency` on the fly.
 /// You will have to collect *owned* `Dependency` objects to a `Vec` or `HashMap` first.
+#[derive(Debug, Clone)]
 pub struct ParseDependency<'a, 'tmp> {
     /// Name/id of the dependency, not always the crate name
     pub key: &'a str,
@@ -284,8 +290,9 @@ pub struct ParseDependency<'a, 'tmp> {
     pub dep: &'tmp Dependency,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub enum Kind {
+    #[default]
     Normal,
     Dev,
     Build,

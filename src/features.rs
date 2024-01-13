@@ -1,6 +1,7 @@
 //! Helper for parsing the microsyntax of the `[features]` section and computing implied features from optional dependencies.
 
 use crate::{Dependency, Manifest, Product, DepsSet, TargetDepsSet};
+use std::borrow::Cow;
 use std::collections::hash_map::{Entry, RandomState};
 use std::collections::{HashMap, BTreeMap, BTreeSet};
 use std::hash::BuildHasher;
@@ -38,6 +39,9 @@ pub struct Features<'manifest, 'deps, Hasher = RandomState> {
     ///
     /// See arg of [`new_with_hasher_and_filter`](Resolver::new_with_hasher_and_filter) to disable removal.
     pub removed_hidden_features: bool,
+
+    /// A redirect from removed feature to its replacements
+    pub hidden_features: HashMap<&'manifest str, BTreeSet<&'manifest str>, Hasher>,
 }
 
 /// How an enabled feature affects the dependency
@@ -49,7 +53,7 @@ pub struct DepAction<'a> {
     /// Uses `dep:` or `?` syntax, so it doesn't imply a feature name
     pub is_dep_only: bool,
     /// Features of the dependency to enable (the text after slash, possibly aggregated from multiple items)
-    pub dep_features: BTreeSet<&'a str>,
+    pub dep_features: BTreeSet<Cow<'a, str>>,
 }
 
 /// A feature from `[features]` with all the details
@@ -237,12 +241,13 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
 
         Self::remove_redundant_dep_action_features(&mut features, &dependencies);
         Self::set_enabled_by(&mut features);
-        let removed_hidden_features = self.remove_hidden_features(&mut features);
+        let hidden_features = self.remove_hidden_features(&mut features);
 
         Features {
             features,
             dependencies,
-            removed_hidden_features,
+            removed_hidden_features: !hidden_features.is_empty(),
+            hidden_features,
         }
     }
 
@@ -265,12 +270,13 @@ impl<'manifest, 'config, RandomState: BuildHasher + Default> Resolver<'config, R
 
         Self::remove_redundant_dep_action_features(&mut features, &dependencies);
         Self::set_enabled_by(&mut features);
-        let removed_hidden_features = self.remove_hidden_features(&mut features);
+        let hidden_features = self.remove_hidden_features(&mut features);
 
         Features {
             features,
             dependencies,
-            removed_hidden_features,
+            removed_hidden_features: !hidden_features.is_empty(),
+            hidden_features,
         }
     }
 }
@@ -331,7 +337,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                 });
                 if !is_conditional { action.is_conditional = false; }
                 if is_dep_only { action.is_dep_only = true; }
-                if let Some(df) = dep_feature { action.dep_features.insert(df); }
+                if let Some(df) = dep_feature { action.dep_features.insert(Cow::Borrowed(df)); }
             } else {
                 // dep/foo can be both, and missing enables_deps is added later after checking all for dep:
                 enables_features.insert(atarget);
@@ -470,7 +476,8 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
             .filter(|(_, action)| !action.dep_features.is_empty())
             .for_each(|(dep_key, action)| {
                 if let Some(dep) = dependencies.get(dep_key).and_then(|d| d.dep().detail()) {
-                    action.dep_features.retain(move |&dep_f| {
+                    action.dep_features.retain(move |dep_f| {
+                        let dep_f = &**dep_f;
                         (!dep.default_features || dep_f != "default") &&
                         !dep.features.iter().any(|k| k == dep_f)
                     });
@@ -499,17 +506,19 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
 
     /// find `__features` and inline them
     #[inline(never)]
-    fn remove_hidden_features(&self, features: &mut HashMap<&'a str, Feature<'a>, S>) -> bool {
+    fn remove_hidden_features(&self, features: &mut HashMap<&'a str, Feature<'a>, S>) -> HashMap<&'a str, BTreeSet<&'a str>, S> {
         let features_to_remove: BTreeSet<_> = features.keys().copied().filter(|&k| {
             k.starts_with('_') && !self.always_keep.map_or(false, |cb| (cb)(k)) // if user thinks that is useful info
         }).collect();
 
+        let mut removed_mapping = HashMap::<_, _, S>::default();
+
         if features_to_remove.is_empty() {
-            return false;
+            return removed_mapping;
         }
 
         features_to_remove.into_iter().for_each(|key| {
-            let Some(janky) = features.remove(key) else { return };
+            let Some(mut janky) = features.remove(key) else { return };
 
             janky.enabled_by.iter().for_each(|&parent_key| if let Some(parent) = features.get_mut(parent_key) {
                 parent.enabled_by.remove(janky.key); // just in case it's circular
@@ -523,7 +532,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                         .and_modify(|old| {
                             if !ja.is_conditional { old.is_conditional = false; }
                             if ja.is_dep_only { old.is_dep_only = true; }
-                            old.dep_features.extend(&ja.dep_features);
+                            old.dep_features.extend(ja.dep_features.iter().cloned());
                         })
                         .or_insert_with(|| ja.clone());
                 });
@@ -550,8 +559,10 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                     d.enabled_by.remove(janky.key);
                 }
             });
+
+            removed_mapping.entry(janky.key).or_default().append(&mut janky.enables_features);
         });
-        true
+        removed_mapping
     }
 }
 

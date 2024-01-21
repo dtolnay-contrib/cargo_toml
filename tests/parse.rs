@@ -1,4 +1,4 @@
-use cargo_toml::{Manifest, StripSetting};
+use cargo_toml::{Manifest, StripSetting, Lint, LintLevel};
 use std::fs::read;
 use std::path::Path;
 
@@ -257,4 +257,27 @@ fn unstable() {
 
     assert_eq!("0.0.0", m.package().version());
     assert_eq!(false, m.package().publish());
+}
+
+#[test]
+fn lints() {
+    let m = Manifest::from_slice(&read("tests/lints/Cargo.toml").unwrap()).unwrap();
+
+    let lints = m.workspace.unwrap().lints.unwrap();
+    let lint_group = lints.get("rust").unwrap();
+    assert_eq!(lint_group.get("unsafe"), Some(&Lint::Simple(LintLevel::Forbid)));
+    assert_eq!(lint_group.get("unknown-rule"), Some(&Lint::Detailed{
+        level: LintLevel::Allow,
+        priority: Some(-1)
+    }));
+
+    
+    let lints = m.lints.unwrap();
+    assert_eq!(lints.workspace, true);
+    let lint_group = lints.groups.get("rust").unwrap();
+    assert_eq!(lint_group.get("unsafe"), Some(&Lint::Simple(LintLevel::Allow)));
+    assert_eq!(lint_group.get("unknown-rule"), Some(&Lint::Detailed{
+        level: LintLevel::Forbid,
+        priority: None
+    }));
 }

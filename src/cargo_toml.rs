@@ -35,6 +35,10 @@ pub type TargetDepsSet = BTreeMap<String, Target>;
 pub type FeatureSet = BTreeMap<String, Vec<String>>;
 /// Locally replace dependencies
 pub type PatchSet = BTreeMap<String, DepsSet>;
+/// A set of lints.
+pub type LintSet = BTreeMap<String, Lint>;
+/// Lint groups such as [lints.rust].
+pub type LintGroups = BTreeMap<String, LintSet>;
 
 mod afs;
 mod error;
@@ -124,6 +128,10 @@ pub struct Manifest<Metadata = Value> {
     /// Examples
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub example: Vec<Product>,
+
+    /// Lints
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lints: Option<Lints>,
 }
 
 /// A manifest can contain both a package and workspace-wide properties
@@ -159,6 +167,10 @@ pub struct Workspace<Metadata = Value> {
     /// Template for needs_workspace_inheritance
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
+
+    /// Workspace-level lint groups
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lints: Option<LintGroups>,
 }
 
 /// Workspace can predefine properties that can be inherited via `{ workspace = true }` in its member packages.
@@ -682,6 +694,7 @@ impl<Metadata: Default> Default for Manifest<Metadata> {
             bench: Default::default(),
             test: Default::default(),
             example: Default::default(),
+            lints: Default::default(),
         }
     }
 }
@@ -1833,4 +1846,40 @@ impl Display for Resolver {
 
 impl Default for Resolver {
     fn default() -> Self { Self::V1 }
+}
+
+
+
+/// Lint definition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Lint {
+    Simple(LintLevel),
+    Detailed {
+        level: LintLevel,
+        /// Controls which lints or lint groups override other lint groups.
+        priority: Option<i32>,
+    }
+}
+
+/// Lint level.
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LintLevel {
+    Allow,
+    Warn,
+    Deny,
+    Forbid,
+}
+
+/// `[lints]` section.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct Lints {
+    /// Inherit lint rules from the workspace.
+    pub workspace: bool,
+
+    /// Lint groups
+    #[serde(flatten)]
+    pub groups: LintGroups,
 }

@@ -142,16 +142,11 @@ impl<'a> Feature<'a> {
     }
 }
 
-/// Extra info for dependency referenced by a feature
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct FeatureDependencyDetail<'dep> {
-    /// Features may refer to non-optional dependencies, only enable *their* features
-    pub is_optional: bool,
-    /// If it's enabled by default, other targets are ignored and this is empty
-    pub only_for_targets: BTreeSet<&'dep str>,
-    /// Details about this dependency
-    pub dep: &'dep Dependency,
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TargetKey<'a> {
+    pub kind: Kind,
+    /// cfg. None for all targets.
+    pub target: Option<&'a str>,
 }
 
 /// A dependency referenced by a feature
@@ -161,40 +156,23 @@ pub struct FeatureDependency<'dep> {
     /// Actual crate of this dependency. Note that multiple dependencies can be the same crate, in different versions.
     pub crate_name: &'dep str,
 
-    /// At least one of these will be set
-    pub normal: Option<FeatureDependencyDetail<'dep>>,
-    pub build: Option<FeatureDependencyDetail<'dep>>,
-    pub dev: Option<FeatureDependencyDetail<'dep>>,
+    /// By kind and target
+    pub targets: BTreeMap<TargetKey<'dep>, &'dep Dependency>,
 }
 
 impl<'dep> FeatureDependency<'dep> {
     #[inline]
     #[must_use]
     pub fn dep(&self) -> &'dep Dependency {
-        self.detail().0.dep
+        self.detail().0
     }
 
     /// Extra metadata for the most common usage (normal > build > dev) of this dependency
     #[inline]
     #[must_use]
-    pub fn detail(&self) -> (&FeatureDependencyDetail<'dep>, Kind) {
-        [
-            (self.normal.as_ref(), Kind::Normal),
-            (self.build.as_ref(), Kind::Build),
-            (self.dev.as_ref(), Kind::Dev)
-        ].into_iter()
-        .find_map(|(detail, kind)| Some((detail?, kind)))
-        .unwrap()
-    }
-
-    #[inline]
-    #[must_use]
-    fn get_mut_entry(&mut self, kind: Kind) -> &mut Option<FeatureDependencyDetail<'dep>> {
-        match kind {
-            Kind::Normal => &mut self.normal,
-            Kind::Build => &mut self.build,
-            Kind::Dev => &mut self.dev,
-        }
+    pub fn detail(&self) -> (&'dep Dependency, Kind) {
+        let (k, dep) = self.targets.iter().next().unwrap();
+        (dep, k.kind)
     }
 }
 
@@ -296,12 +274,12 @@ pub struct ParseDependency<'a, 'tmp> {
     pub dep: &'tmp Dependency,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Default)]
 pub enum Kind {
     #[default]
     Normal,
-    Dev,
     Build,
+    Dev,
 }
 
 
@@ -368,37 +346,13 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
         if !is_optional && named_using_dep_syntax.is_none() && matches!(entry, Entry::Vacant(_)) {
             return;
         }
+
         let entry = entry.or_insert_with(move || FeatureDependency {
             crate_name: dep.package().unwrap_or(key),
-            normal: None,
-            build: None,
-            dev: None,
+            targets: BTreeMap::new(),
         });
-        match entry.get_mut_entry(dep_kind) {
-            Some(out) => {
-                // target-specific non-optional doesn't affect optionality for other targets
-                if let Some(target) = only_for_target {
-                    // if the dep is already used for all targets, then the target-specific details won't change that
-                    if !out.only_for_targets.is_empty() {
-                        out.only_for_targets.insert(target);
-                    }
-                } else {
-                    out.only_for_targets.clear();
-                    if !is_optional && out.is_optional {
-                        out.is_optional = false;
-                        out.dep = dep;
-                    }
-                }
-            },
-            out @ None => {
-                *out = Some(FeatureDependencyDetail {
-                    dep,
-                    is_optional,
-                    // if creating, this is the first time seeing the dep, so it is target-specific, since general deps were processed earlier
-                    only_for_targets: only_for_target.into_iter().collect(),
-                });
-            }
-        };
+
+        entry.targets.entry(TargetKey { kind: dep_kind, target: only_for_target }).or_insert(dep);
 
         // explicit features never overlap with deps, unless using "dep:" syntax.
 
@@ -633,9 +587,8 @@ loop3 = ["loop1", "implied_referenced/from_loop_3"]
     assert_eq!(d["not_optional"].crate_name, "actual_pkg");
 
     assert_eq!(d["implied_standalone"].crate_name, "implied_standalone");
-    assert!(d["implied_standalone"].normal.as_ref().unwrap().is_optional);
-    assert!(d["a_dep"].normal.is_none());
-    assert!(d["a_dep"].build.is_some());
+    assert!(d["implied_standalone"].detail().0.optional());
+    assert!(d["a_dep"].targets.keys().all(|t| t.kind == Kind::Build));
     assert!(!f["implied_standalone"].explicit);
     assert!(!f["implied_referenced"].explicit);
     assert!(!f["a_dep"].explicit);

@@ -104,24 +104,8 @@ fn autoworkspace() {
 }
 
 #[test]
-fn legacy() {
-    let m = Manifest::from_slice(
-        br#"[project]
-                name = "foo"
-                version = "1"
-                "#,
-    )
-    .expect("parse old");
-    let package = m.package();
-    assert_eq!("foo", package.name);
-    let m = Manifest::from_str("name = \"foo\"\nversion=\"1\"").expect("parse bare");
-    let package = m.package();
-    assert_eq!("foo", package.name);
-}
-
-#[test]
 fn proc_macro() {
-    let manifest = br#"[project]
+    let manifest = br#"[package]
     name = "foo"
     version = "1"
     [lib]

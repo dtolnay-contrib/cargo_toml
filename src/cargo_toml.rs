@@ -308,14 +308,6 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             if package.version.get().map_or(false, |v| v == "0.0.0") && package.publish.get().map_or(false, |p| p.is_default()) {
                 package.publish = Inheritable::Set(Publish::Flag(false));
             }
-        } else if manifest.package.is_none() && manifest.workspace.is_none() {
-            // Some old crates lack the `[package]` header
-            let val: Value = toml::from_str(cargo_toml_content)?;
-            if let Some(project) = val.get("project") {
-                manifest.package = Some(project.clone().try_into()?);
-            } else {
-                manifest.package = Some(val.try_into()?);
-            }
         }
         Ok(manifest)
     }

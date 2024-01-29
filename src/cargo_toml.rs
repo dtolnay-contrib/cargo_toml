@@ -1869,6 +1869,7 @@ pub enum LintLevel {
 #[serde(rename_all = "kebab-case")]
 pub struct Lints {
     /// Inherit lint rules from the workspace.
+    #[serde(default, skip_serializing_if = "is_false")]
     pub workspace: bool,
 
     /// Lint groups

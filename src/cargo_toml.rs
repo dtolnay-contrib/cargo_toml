@@ -846,7 +846,8 @@ impl TryFrom<Value> for LtoSetting {
             Value::String(s) => match s.as_str() {
                 "off" | "n" | "no" => Self::None,
                 "thin" => Self::Thin,
-                "fat" | "on" | "y" | "yes" => Self::Fat,
+                "fat" | "on" | "y" | "yes" | "true" => Self::Fat,
+                "false" => Self::ThinLocal,
                 _ => return Err(Error::Other("lto setting has unknown string value")),
             },
             _ => return Err(Error::Other("wrong data type for lto setting")),

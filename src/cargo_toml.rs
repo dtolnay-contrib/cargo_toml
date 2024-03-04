@@ -15,7 +15,6 @@
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{BTreeMap, BTreeSet};
-use std::convert::TryFrom;
 use std::fmt::Display;
 use std::mem::take;
 use std::path::{Path, PathBuf};
@@ -650,10 +649,10 @@ fn inherit_dependencies<Ignored>(deps_to_inherit: &mut BTreeMap<String, Dependen
             let mut overrides = overrides.clone();
             *dep = template.clone();
             if overrides.optional {
-                dep.detail_mut().optional = true;
+                dep.try_detail_mut()?.optional = true;
             }
             if !overrides.features.is_empty() {
-                dep.detail_mut().features.append(&mut overrides.features);
+                dep.try_detail_mut()?.features.append(&mut overrides.features);
             }
             if let Dependency::Detailed(dep) = dep {
                 dep.inherited = true;
@@ -1034,6 +1033,8 @@ pub enum Dependency {
 
 impl Dependency {
     /// Get object with special dependency settings if it's not just a version number.
+    ///
+    /// Returns `None` if it's inherited and the value is not available
     #[inline]
     #[must_use] pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
@@ -1046,23 +1047,32 @@ impl Dependency {
     #[inline]
     #[track_caller]
     pub fn detail_mut(&mut self) -> &mut DependencyDetail {
+        self.try_detail_mut().expect("dependency not available due to workspace inheritance")
+    }
+
+    /// Returns error if inherited value is not available
+    ///
+    /// Makes it detailed otherwise
+    pub fn try_detail_mut(&mut self) -> Result<&mut DependencyDetail, Error> {
         match self {
-            Dependency::Detailed(d) => d,
+            Dependency::Detailed(d) => Ok(d),
             Dependency::Simple(ver) => {
                 *self = Dependency::Detailed(Box::new(DependencyDetail {
                     version: Some(ver.clone()),
                     ..Default::default()
                 }));
                 match self {
-                    Dependency::Detailed(d) => d,
+                    Dependency::Detailed(d) => Ok(d),
                     _ => unreachable!(),
                 }
             },
-            Dependency::Inherited(_) => panic!("dependency not available due to workspace inheritance"),
+            Dependency::Inherited(_) => Err(Error::InheritedUnknownValue),
         }
     }
 
     /// Version requirement
+    ///
+    /// Panics if inherited value is not available
     #[inline]
     #[track_caller]
     #[must_use]

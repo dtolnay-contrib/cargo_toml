@@ -163,7 +163,7 @@ pub struct Workspace<Metadata = Value> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
-    /// Template for needs_workspace_inheritance
+    /// Template for `needs_workspace_inheritance`
     #[serde(default, skip_serializing_if = "DepsSet::is_empty")]
     pub dependencies: DepsSet,
 
@@ -286,7 +286,6 @@ impl Manifest<Value> {
 }
 
 impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
-
     /// Parse `Cargo.toml`, and parse its `[package.metadata]` into a custom Serde-compatible type.
     ///
     /// It does not call [`Manifest::complete_from_path`], so may be missing implicit data.
@@ -304,7 +303,7 @@ impl<Metadata: for<'a> Deserialize<'a>> Manifest<Metadata> {
             // This is a clumsy implementation of Cargo's rule that missing version defaults publish to false.
             // Serde just doesn't support such relationship for default field values, so this will be incorrect
             // for explicit `version = "0.0.0"` and `publish = true`.
-            if package.version.get().map_or(false, |v| v == "0.0.0") && package.publish.get().map_or(false, |p| p.is_default()) {
+            if package.version.get().is_ok_and(|v| v == "0.0.0") && package.publish.get().is_ok_and(|p| p.is_default()) {
                 package.publish = Inheritable::Set(Publish::Flag(false));
             }
         }
@@ -355,7 +354,7 @@ impl<Metadata> Manifest<Metadata> {
     /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
     /// If it's `None`, it will try to find a workspace if needed.
     pub fn complete_from_abstract_filesystem<PackageMetadataTypeDoesNotMatterHere, Fs: AbstractFilesystem>(
-        &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>
+        &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>,
     ) -> Result<(), Error> {
         if let Some((ws, ws_path)) = workspace_manifest_and_path {
             self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
@@ -455,7 +454,7 @@ impl<Metadata> Manifest<Metadata> {
         }
         match (package.license_file.as_mut(), ws.license_file.as_ref()) {
             (Some(f), Some(ws)) => f.set(workspace_base_path.join(ws)),
-            _ => {}
+            _ => {},
         };
         Ok(())
     }
@@ -474,11 +473,11 @@ impl<Metadata> Manifest<Metadata> {
             lib.required_features.clear(); // not applicable
         }
 
-        let has_path = self.lib.as_ref().map_or(false, |l| l.path.is_some());
+        let has_path = self.lib.as_ref().is_some_and(|l| l.path.is_some());
         if !has_path && src.contains("lib.rs") {
             let old_lib = self.lib.take().unwrap_or_default();
             self.lib = Some(Product {
-                name: if let Some(name) = old_lib.name { Some(name)} else {Some(package.name.replace('-', "_"))},
+                name: if let Some(name) = old_lib.name { Some(name) } else { Some(package.name.replace('-', "_")) },
                 path: Some("src/lib.rs".to_string()),
                 edition: *package.edition.get()?,
                 crate_type: vec!["rlib".to_string()],
@@ -538,7 +537,7 @@ impl<Metadata> Manifest<Metadata> {
 
         let Some(package) = &mut self.package else { return Ok(()) };
 
-        if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").map_or(false, |dir| dir.contains("build.rs")) {
+        if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in(".").is_ok_and(|dir| dir.contains("build.rs")) {
             package.build = Some(OptionalFile::Path("build.rs".into()));
         }
 
@@ -744,6 +743,7 @@ pub enum DebugSetting {
 
 impl TryFrom<Value> for DebugSetting {
     type Error = Error;
+
     fn try_from(v: Value) -> Result<Self, Error> {
         Ok(match v {
             Value::Boolean(b) => if b { Self::Full } else { Self::None },
@@ -1036,7 +1036,8 @@ impl Dependency {
     ///
     /// Returns `None` if it's inherited and the value is not available
     #[inline]
-    #[must_use] pub fn detail(&self) -> Option<&DependencyDetail> {
+    #[must_use]
+    pub fn detail(&self) -> Option<&DependencyDetail> {
         match *self {
             Dependency::Detailed(ref d) => Some(d),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
@@ -1141,13 +1142,13 @@ impl Dependency {
             Dependency::Simple(_) => true,
             Dependency::Detailed(ref d) => {
                 // TODO: allow registry to be set to crates.io explicitly?
-                d.path.is_none()
-                    && d.registry.is_none()
-                    && d.registry_index.is_none()
-                    && d.git.is_none()
-                    && d.tag.is_none()
-                    && d.branch.is_none()
-                    && d.rev.is_none()
+                d.path.is_none() &&
+                    d.registry.is_none() &&
+                    d.registry_index.is_none() &&
+                    d.git.is_none() &&
+                    d.tag.is_none() &&
+                    d.branch.is_none() &&
+                    d.rev.is_none()
             },
             Dependency::Inherited(_) => panic!("data not available with workspace inheritance"),
         }
@@ -1219,7 +1220,7 @@ pub struct DependencyDetail {
 
     /// Contains the remaining unstable keys and values for the dependency.
     #[serde(flatten)]
-    pub unstable: BTreeMap<String, Value>
+    pub unstable: BTreeMap<String, Value>,
 }
 
 impl Default for DependencyDetail {
@@ -1594,9 +1595,7 @@ impl<Metadata> Package<Metadata> {
 }
 
 impl<Metadata: Default> Default for Package<Metadata> {
-    fn default() -> Self {
-        Self::new("", "")
-    }
+    fn default() -> Self { Self::new("", "") }
 }
 
 /// A way specify or disable README or `build.rs`.
@@ -1611,9 +1610,7 @@ pub enum OptionalFile {
 
 impl Default for OptionalFile {
     #[inline]
-    fn default() -> Self {
-        Self::Flag(true)
-    }
+    fn default() -> Self { Self::Flag(true) }
 }
 
 impl OptionalFile {
@@ -1654,9 +1651,7 @@ impl Publish {
 
 impl Default for Publish {
     #[inline]
-    fn default() -> Self {
-        Publish::Flag(true)
-    }
+    fn default() -> Self { Publish::Flag(true) }
 }
 
 impl PartialEq<Publish> for bool {
@@ -1776,15 +1771,15 @@ impl Badges {
     #[allow(deprecated)]
     /// Determine whether or not a Profiles struct should be serialized
     fn should_skip_serializing(&self) -> bool {
-        self.appveyor.is_none()
-            && self.circle_ci.is_none()
-            && self.gitlab.is_none()
-            && self.travis_ci.is_none()
-            && self.codecov.is_none()
-            && self.coveralls.is_none()
-            && self.is_it_maintained_issue_resolution.is_none()
-            && self.is_it_maintained_open_issues.is_none()
-            && matches!(self.maintenance.status, MaintenanceStatus::None)
+        self.appveyor.is_none() &&
+            self.circle_ci.is_none() &&
+            self.gitlab.is_none() &&
+            self.travis_ci.is_none() &&
+            self.codecov.is_none() &&
+            self.coveralls.is_none() &&
+            self.is_it_maintained_issue_resolution.is_none() &&
+            self.is_it_maintained_open_issues.is_none() &&
+            matches!(self.maintenance.status, MaintenanceStatus::None)
     }
 }
 
@@ -1810,10 +1805,11 @@ pub enum MaintenanceStatus {
 }
 
 /// Edition setting, which opts in to new Rust/Cargo behaviors.
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Edition {
     /// 2015
     #[serde(rename = "2015")]
+    #[default]
     E2015 = 2015,
     /// 2018
     #[serde(rename = "2018")]
@@ -1823,16 +1819,11 @@ pub enum Edition {
     E2021 = 2021,
 }
 
-impl Default for Edition {
-    fn default() -> Self {
-        Self::E2015
-    }
-}
-
 /// `resolver = "2"` setting. Needed in [`Workspace`], but implied by [`Edition`] in packages.
-#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Resolver {
     #[serde(rename = "1")]
+    #[default]
     V1 = 1,
     #[serde(rename = "2")]
     V2 = 2,
@@ -1847,12 +1838,6 @@ impl Display for Resolver {
     }
 }
 
-impl Default for Resolver {
-    fn default() -> Self { Self::V1 }
-}
-
-
-
 /// Lint definition.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -1862,7 +1847,7 @@ pub enum Lint {
         level: LintLevel,
         /// Controls which lints or lint groups override other lint groups.
         priority: Option<i32>,
-    }
+    },
 }
 
 /// Lint level.

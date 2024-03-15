@@ -1,4 +1,4 @@
-use cargo_toml::{Manifest, StripSetting, Lint, LintLevel};
+use cargo_toml::{Lint, LintLevel, Manifest, StripSetting};
 use std::fs::read;
 use std::path::Path;
 
@@ -257,7 +257,7 @@ fn lints() {
 
     
     let lints = m.lints.unwrap();
-    assert_eq!(lints.workspace, true);
+    assert!(lints.workspace);
     let lint_group = lints.groups.get("rust").unwrap();
     assert_eq!(lint_group.get("unsafe"), Some(&Lint::Simple(LintLevel::Allow)));
     assert_eq!(lint_group.get("unknown-rule"), Some(&Lint::Detailed{

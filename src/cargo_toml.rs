@@ -1766,6 +1766,11 @@ pub struct Badges {
     /// Maintenance: `status` is required. Available options are `actively-developed`,
     /// `passively-maintained`, `as-is`, `experimental`, `looking-for-maintainer`,
     /// `deprecated`, and the default `none`, which displays no badge on crates.io.
+    ///
+    /// ```toml
+    /// [badges]
+    /// maintenance.status = "as-is"
+    /// ```
     #[serde(default, deserialize_with = "ok_or_default")]
     pub maintenance: Maintenance,
 }
@@ -1787,12 +1792,22 @@ impl Badges {
 }
 
 /// A [`Badges`] field with [`MaintenanceStatus`].
+///
+/// ```toml
+/// [badges]
+/// maintenance.status = "experimental"
+/// ```
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Default, Serialize, Deserialize)]
 pub struct Maintenance {
     pub status: MaintenanceStatus,
 }
 
 /// Mainly used to deprecate crates.
+///
+/// ```toml
+/// [badges]
+/// maintenance.status = "deprecated"
+/// ```
 #[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[derive(Default)]

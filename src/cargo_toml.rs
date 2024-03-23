@@ -1536,7 +1536,6 @@ impl<Metadata> Package<Metadata> {
         Some(self.repository.as_ref()?.as_ref().unwrap())
     }
 
-    #[inline]
     pub fn set_repository(&mut self, repository: Option<String>) {
         self.repository = repository.map(Inheritable::Set);
     }
@@ -1546,6 +1545,10 @@ impl<Metadata> Package<Metadata> {
     #[inline]
     pub fn rust_version(&self) -> Option<&str> {
         Some(self.rust_version.as_ref()?.as_ref().unwrap())
+    }
+
+    pub fn set_rust_version(&mut self, rust_version: Option<String>) {
+        self.rust_version = rust_version.map(Inheritable::Set);
     }
 
     /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
@@ -1817,6 +1820,17 @@ pub enum Edition {
     /// 2021
     #[serde(rename = "2021")]
     E2021 = 2021,
+}
+
+impl Edition {
+    /// Returns minor version (1.x) of the oldest rustc that supports this edition
+    pub fn min_rust_version_minor(self) -> u16 {
+        match self {
+            Edition::E2015 => 1,
+            Edition::E2018 => 31,
+            Edition::E2021 => 56,
+        }
+    }
 }
 
 /// `resolver = "2"` setting. Needed in [`Workspace`], but implied by [`Edition`] in packages.

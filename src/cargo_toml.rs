@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+#![allow(clippy::trivially_copy_pass_by_ref)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! This crate defines `struct`s that can be deserialized with Serde
@@ -1324,7 +1325,7 @@ pub struct Package<Metadata = Value> {
     pub keywords: Inheritable<Vec<String>>,
 
     /// This is a list of up to five categories where this crate would fit.
-    /// e.g. ["command-line-utilities", "development-tools::cargo-plugins"]
+    /// e.g. `["command-line-utilities", "development-tools::cargo-plugins"]`
     #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
     pub categories: Inheritable<Vec<String>>,
 
@@ -1627,7 +1628,7 @@ impl OptionalFile {
     pub fn as_path(&self) -> Option<&Path> {
         match self {
             Self::Path(p) => Some(p),
-            _ => None,
+            Self::Flag(_) => None,
         }
     }
 
@@ -1839,6 +1840,7 @@ pub enum Edition {
 
 impl Edition {
     /// Returns minor version (1.x) of the oldest rustc that supports this edition
+    #[must_use]
     pub fn min_rust_version_minor(self) -> u16 {
         match self {
             Edition::E2015 => 1,

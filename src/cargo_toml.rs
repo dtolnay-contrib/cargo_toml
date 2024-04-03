@@ -388,6 +388,7 @@ impl<Metadata> Manifest<Metadata> {
     /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
     /// Used as a base for `readme` and `license-file`.
     #[deprecated(note = "this functionality has been merged into `complete_from_path_and_workspace` or `complete_from_abstract_filesystem`")]
+    #[doc(hidden)]
     pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
         self._inherit_workspace(workspace_manifest.workspace.as_ref(), workspace_base_path)
     }

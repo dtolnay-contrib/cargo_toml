@@ -1836,6 +1836,9 @@ pub enum Edition {
     /// 2021
     #[serde(rename = "2021")]
     E2021 = 2021,
+    /// 2024
+    #[serde(rename = "2024")]
+    E2024 = 2024,
 }
 
 impl Edition {
@@ -1846,6 +1849,7 @@ impl Edition {
             Edition::E2015 => 1,
             Edition::E2018 => 31,
             Edition::E2021 => 56,
+            Edition::E2024 => unreachable!("2024 edition is not yet released"),
         }
     }
 }

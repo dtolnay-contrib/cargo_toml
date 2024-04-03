@@ -364,7 +364,11 @@ impl<Metadata> Manifest<Metadata> {
             self._inherit_workspace(Some(&ws), Path::new(""))?;
             self.workspace = Some(ws);
         } else if self.needs_workspace_inheritance() {
-            let (ws_manifest, base_path) = fs.parse_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref()))?;
+            let (ws_manifest, base_path) = match fs.parse_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref())) {
+                Ok(res) => res,
+                Err(e @ Error::Workspace(_)) => return Err(e),
+                Err(e) => return Err(Error::Workspace(e.into())),
+            };
             self._inherit_workspace(ws_manifest.workspace.as_ref(), &base_path)?;
         }
         self.complete_from_abstract_filesystem_inner(&fs)

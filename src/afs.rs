@@ -121,7 +121,7 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
 
 #[inline(never)]
 fn parse_workspace(data: &[u8], path: &Path) -> Result<Manifest<Value>, Error> {
-    let manifest = Manifest::from_slice(data).map_err(|e| Error::Workspace(Box::new(e)))?;
+    let manifest = Manifest::from_slice(data)?;
     if manifest.workspace.is_none() {
         return Err(Error::WorkspaceIntegrity(format!("Manifest at {} was expected to be a workspace.", path.display())));
     }

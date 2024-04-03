@@ -1079,10 +1079,20 @@ impl Dependency {
     #[track_caller]
     #[must_use]
     pub fn req(&self) -> &str {
+        self.try_req().unwrap()
+    }
+
+    /// Version requirement
+    ///
+    /// Returns Error if inherited value is not available
+    #[inline]
+    #[track_caller]
+    #[must_use]
+    pub fn try_req(&self) -> Result<&str, Error> {
         match *self {
-            Dependency::Simple(ref v) => v,
-            Dependency::Detailed(ref d) => d.version.as_deref().unwrap_or("*"),
-            Dependency::Inherited(_) => panic!("version requirement not available with workspace inheritance"),
+            Dependency::Simple(ref v) => Ok(v),
+            Dependency::Detailed(ref d) => Ok(d.version.as_deref().unwrap_or("*")),
+            Dependency::Inherited(_) =>  Err(Error::InheritedUnknownValue),
         }
     }
 

@@ -354,6 +354,8 @@ impl<Metadata> Manifest<Metadata> {
     ///
     /// If `workspace_manifest_and_path` is set, it will inherit from this workspace.
     /// If it's `None`, it will try to find a workspace if needed.
+    ///
+    /// Call it like `complete_from_abstract_filesystem::<cargo_toml::Value, _>(…)` if the arguments are ambiguous.
     pub fn complete_from_abstract_filesystem<PackageMetadataTypeDoesNotMatterHere, Fs: AbstractFilesystem>(
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>,
     ) -> Result<(), Error> {

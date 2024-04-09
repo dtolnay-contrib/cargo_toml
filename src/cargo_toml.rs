@@ -1283,7 +1283,7 @@ pub struct InheritedDependencyDetail {
 ///
 /// You can replace `Metadata` generic type with your own
 /// to parse into something more useful than a generic toml `Value`
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub struct Package<Metadata = Value> {

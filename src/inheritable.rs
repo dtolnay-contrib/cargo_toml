@@ -2,7 +2,7 @@ use crate::Error;
 use serde::{Deserialize, Serialize};
 
 /// Placeholder for a property that may be missing from its package, and needs to be copied from a `Workspace`.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum Inheritable<T> {
     Set(T),
@@ -10,6 +10,15 @@ pub enum Inheritable<T> {
         /// Always `true` (this is for serde)
         workspace: bool,
     },
+}
+
+impl<T: PartialEq> PartialEq for Inheritable<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Set(a), Self::Set(b)) => a.eq(b),
+            _ => false,
+        }
+    }
 }
 
 impl<T> Inheritable<T> {

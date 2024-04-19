@@ -9,3 +9,10 @@ This crate is more than just schema definition. It supports post-processing of t
 To get started, see [`Manifest::from_slice`][docs]. If you need to get information about Cargo projects local to devs' machines, also consider [cargo_metadata](lib.rs/crates/cargo_metadata).
 
 [docs]: https://docs.rs/cargo_toml/latest/cargo_toml/struct.Manifest.html#method.from_slice
+
+## There will be updates
+
+Cargo regularly adds new features to `Cargo.toml`. Keep this crate up-to-date to correctly parse them all — **use [dependabot][db] or [renovate][ren]**.
+
+[db]: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuring-dependabot-version-updates
+[ren]: https://docs.renovatebot.com/rust/

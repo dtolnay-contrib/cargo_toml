@@ -103,7 +103,7 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
 
 #[inline(never)]
 fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
-    let mut last_error = Error::Io(io::ErrorKind::NotFound.into());
+    let mut last_error = None;
     path.ancestors().skip(1)
         .map(|parent| parent.join("Cargo.toml"))
         .find_map(|p| {
@@ -111,12 +111,14 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
             match parse_workspace(&data, &p) {
                 Ok(manifest) => Some((manifest, p)),
                 Err(e) => {
-                    last_error = e;
+                    last_error = Some(e);
                     None
                 },
             }
         })
-        .ok_or(last_error)
+        .ok_or(last_error.unwrap_or_else(|| {
+            io::Error::new(io::ErrorKind::NotFound, format!("Can't find workspace in {}/..", path.display())).into()
+        }))
 }
 
 #[inline(never)]

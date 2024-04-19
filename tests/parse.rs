@@ -244,6 +244,14 @@ fn unstable() {
 }
 
 #[test]
+fn edition() {
+    let m = Manifest::from_slice(&read("tests/edition/Cargo.toml").unwrap()).unwrap();
+    let package = m.package();
+
+    assert_eq!(cargo_toml::Edition::E2024, package.edition());
+}
+
+#[test]
 fn lints() {
     let m = Manifest::from_slice(&read("tests/lints/Cargo.toml").unwrap()).unwrap();
 
@@ -255,7 +263,7 @@ fn lints() {
         priority: Some(-1)
     }));
 
-    
+
     let lints = m.lints.unwrap();
     assert!(lints.workspace);
     let lint_group = lints.groups.get("rust").unwrap();

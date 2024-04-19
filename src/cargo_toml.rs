@@ -1842,6 +1842,7 @@ pub enum MaintenanceStatus {
 
 /// Edition setting, which opts in to new Rust/Cargo behaviors.
 #[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum Edition {
     /// 2015
     #[serde(rename = "2015")]

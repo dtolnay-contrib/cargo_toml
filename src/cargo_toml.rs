@@ -1,4 +1,9 @@
 #![forbid(unsafe_code)]
+#![allow(clippy::inline_always)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::needless_for_each)]
+#![allow(clippy::new_without_default)]
+#![allow(clippy::redundant_closure_for_method_calls)]
 #![allow(clippy::trivially_copy_pass_by_ref)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -460,10 +465,9 @@ impl<Metadata> Manifest<Metadata> {
             },
             _ => {},
         }
-        match (package.license_file.as_mut(), ws.license_file.as_ref()) {
-            (Some(f), Some(ws)) => f.set(workspace_base_path.join(ws)),
-            _ => {},
-        };
+        if let Some((f, ws)) = package.license_file.as_mut().zip(ws.license_file.as_ref()) {
+            f.set(workspace_base_path.join(ws))
+        }
         Ok(())
     }
 
@@ -1094,7 +1098,6 @@ impl Dependency {
     /// Returns Error if inherited value is not available
     #[inline]
     #[track_caller]
-    #[must_use]
     pub fn try_req(&self) -> Result<&str, Error> {
         match *self {
             Dependency::Simple(ref v) => Ok(v),

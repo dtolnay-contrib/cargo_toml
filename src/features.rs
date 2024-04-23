@@ -310,7 +310,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                 let action = enables_deps.entry(atarget).or_insert(DepAction {
                     is_conditional,
                     is_dep_only,
-                    dep_features: Default::default(),
+                    dep_features: BTreeSet::default(),
                 });
                 if !is_conditional { action.is_conditional = false; }
                 if is_dep_only { action.is_dep_only = true; }
@@ -365,7 +365,7 @@ impl<'a, 'c, S: BuildHasher + Default> Resolver<'c, S> {
                 enables_deps: BTreeMap::from_iter([(key, DepAction {
                     is_dep_only: false,
                     is_conditional: false,
-                    dep_features: Default::default(),
+                    dep_features: BTreeSet::default(),
                 })]),
                 explicit: false,
                 enabled_by: BTreeSet::new(), // will do later

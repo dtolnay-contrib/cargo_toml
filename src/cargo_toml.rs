@@ -415,6 +415,12 @@ impl<Metadata> Manifest<Metadata> {
         inherit_dependencies(&mut self.build_dependencies, workspace, workspace_base_path)?;
         inherit_dependencies(&mut self.dev_dependencies, workspace, workspace_base_path)?;
 
+        for target in self.target.values_mut() {
+            inherit_dependencies(&mut target.dependencies, workspace, workspace_base_path)?;
+            inherit_dependencies(&mut target.build_dependencies, workspace, workspace_base_path)?;
+            inherit_dependencies(&mut target.dev_dependencies, workspace, workspace_base_path)?;
+        }
+
         let package = match &mut self.package {
             Some(p) => p,
             None => return Ok(()),

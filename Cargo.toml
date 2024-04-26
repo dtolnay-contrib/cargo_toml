@@ -1,5 +1,5 @@
 [package]
-version = "0.20.1"
+version = "0.20.2"
 edition = "2021"
 name = "cargo_toml"
 authors = ["Kornel <kornel@geekhood.net>"]

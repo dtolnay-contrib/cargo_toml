@@ -103,6 +103,9 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
 
 #[inline(never)]
 fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
+    if path.parent().is_none() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, format!("Can't find workspace in '{}', because it has no parent directories", path.display())).into())
+    }
     let mut last_error = None;
     path.ancestors().skip(1)
         .map(|parent| parent.join("Cargo.toml"))
@@ -117,7 +120,8 @@ fn find_workspace(path: &Path) -> Result<(Manifest<Value>, PathBuf), Error> {
             }
         })
         .ok_or(last_error.unwrap_or_else(|| {
-            io::Error::new(io::ErrorKind::NotFound, format!("Can't find workspace in {}/..", path.display())).into()
+            let has_slash = path.to_str().is_some_and(|s| s.ends_with('/'));
+            io::Error::new(io::ErrorKind::NotFound, format!("Can't find workspace in '{}{}..'", path.display(), if has_slash {""} else {"/"})).into()
         }))
 }
 

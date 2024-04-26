@@ -555,17 +555,14 @@ impl<Metadata> Manifest<Metadata> {
 
         let Some(package) = &mut self.package else { return Ok(()) };
 
-        if matches!(package.build, None | Some(OptionalFile::Flag(true))) && fs.file_names_in("").is_ok_and(|dir| dir.contains("build.rs")) {
+        let root_files = fs.file_names_in("")?;
+
+        if matches!(package.build, None | Some(OptionalFile::Flag(true))) && root_files.contains("build.rs") {
             package.build = Some(OptionalFile::Path("build.rs".into()));
         }
 
         if matches!(package.readme.get()?, OptionalFile::Flag(true)) {
-            let files = fs.file_names_in("").ok();
-            if let Some(name) = files.as_ref().and_then(|dir| {
-                dir.get("README.md")
-                    .or_else(|| dir.get("README.txt"))
-                    .or_else(|| dir.get("README"))
-            }) {
+            if let Some(name) = root_files.get("README.md").or_else(|| root_files.get("README.txt")).or_else(|| root_files.get("README")) {
                 package.readme = Inheritable::Set(OptionalFile::Path(PathBuf::from(&**name)));
             }
         }

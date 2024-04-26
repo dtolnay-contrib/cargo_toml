@@ -1641,11 +1641,20 @@ impl Default for OptionalFile {
 }
 
 impl OptionalFile {
+    pub fn display(&self) -> &str {
+        match self {
+            Self::Path(p) => p.to_str().unwrap_or("<non-utf8>"),
+            Self::Flag(true) => "<default>",
+            Self::Flag(false) => "<disabled>",
+        }
+    }
+
     #[inline]
     fn is_default(&self) -> bool {
         matches!(self, Self::Flag(flag) if *flag)
     }
 
+    /// This returns `none` even if `Flag(true)` is set.
     #[inline]
     #[must_use]
     pub fn as_path(&self) -> Option<&Path> {

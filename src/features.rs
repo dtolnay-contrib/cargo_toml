@@ -102,7 +102,6 @@ impl<'a> Feature<'a> {
 
     /// Just `enabled_by` except the "default" feature
     #[inline]
-    #[must_use]
     pub fn non_default_enabled_by(&self) -> impl Iterator<Item = &str> {
         self.enabled_by.iter().copied().filter(|&e| e != "default")
     }
@@ -573,16 +572,16 @@ loop3 = ["loop1", "implied_referenced/from_loop_3"]
     }));
 
     assert!(!d.keys().any(|&k| k.starts_with('_') && k != "__hidden_dep"));
-    assert!(f.get("__hidden_dep").is_none());
+    assert!(!f.contains_key("__hidden_dep"));
 
     assert_eq!(f.len(), 13);
-    assert!(f.get("depend").is_none());
+    assert!(!f.contains_key("depend"));
 
     assert_eq!(d.len(), 7);
-    assert!(d.get("not_relevant").is_none());
-    assert!(f.get("not_relevant").is_none());
+    assert!(!d.contains_key("not_relevant"));
+    assert!(!f.contains_key("not_relevant"));
 
-    assert!(f.get("not_optional").is_none());
+    assert!(!f.contains_key("not_optional"));
     assert_eq!(d["not_optional"].crate_name, "actual_pkg");
 
     assert_eq!(d["implied_standalone"].crate_name, "implied_standalone");
@@ -620,6 +619,6 @@ loop3 = ["loop1", "implied_referenced/from_loop_3"]
     assert_eq!(rf["loop3"].key, "loop3");
     assert_eq!(rd["implied_referenced"][0].0, "loop3");
     assert_eq!(rd["depend"][0].0, "loop2");
-    assert!(rd.get("a_dep").is_none());
+    assert!(!rd.contains_key("a_dep"));
 }
 

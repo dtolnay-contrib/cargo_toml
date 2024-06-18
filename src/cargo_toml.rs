@@ -1399,18 +1399,26 @@ pub struct Package<Metadata = Value> {
     pub default_run: Option<String>,
 
     /// Discover binaries from the file system
+    ///
+    /// This may be incorrectly set to `true` if the crate uses 2015 edition and has explicit `[[bin]]` sections
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobins: bool,
 
     /// Discover examples from the file system
+    ///
+    /// This may be incorrectly set to `true` if the crate uses 2015 edition and has explicit `[[example]]` sections
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autoexamples: bool,
 
     /// Discover tests from the file system
+    ///
+    /// This may be incorrectly set to `true` if the crate uses 2015 edition and has explicit `[[test]]` sections
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autotests: bool,
 
     /// Discover benchmarks from the file system
+    ///
+    /// This may be incorrectly set to `true` if the crate uses 2015 edition and has explicit `[[bench]]` sections
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobenches: bool,
 

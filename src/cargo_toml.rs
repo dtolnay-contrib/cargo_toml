@@ -494,20 +494,22 @@ impl<Metadata> Manifest<Metadata> {
             Err(err) => return Err(err.into()),
         };
 
-        if let Some(ref mut lib) = self.lib {
-            lib.required_features.clear(); // not applicable
-        }
-
         let has_path = self.lib.as_ref().is_some_and(|l| l.path.is_some());
         if !has_path && src.contains("lib.rs") {
-            let old_lib = self.lib.take().unwrap_or_default();
-            self.lib = Some(Product {
-                name: if let Some(name) = old_lib.name { Some(name) } else { Some(package.name.replace('-', "_")) },
-                path: Some("src/lib.rs".to_string()),
-                edition: *package.edition.get()?,
-                crate_type: vec!["rlib".to_string()],
-                ..old_lib
-            });
+            self.lib
+                .get_or_insert_with(Product::default)
+                .path = Some("src/lib.rs".to_string());
+        }
+        if let Some(lib) = &mut self.lib {
+            lib.name.get_or_insert_with(|| package.name.replace('-', "_"));
+            // FIXME: this field should have been an `Option`
+            if is_default(&lib.edition) {
+                lib.edition = *package.edition.get()?;
+            }
+            if lib.crate_type.is_empty() {
+                lib.crate_type.push("lib".to_string());
+            }
+            lib.required_features.clear(); // not applicable
         }
 
         if package.autobins {
@@ -994,6 +996,8 @@ pub struct Product {
     /// `[package]` is configured to use, perhaps only compiling a library with the
     /// 2018 edition or only compiling one unit test with the 2015 edition. By default
     /// all products are compiled with the edition specified in `[package]`.
+    ///
+    /// FIXME: this field should have been an `Option`. It will deserialize as 2015 if unset.
     #[serde(default, skip_serializing_if = "is_default")]
     pub edition: Edition,
 

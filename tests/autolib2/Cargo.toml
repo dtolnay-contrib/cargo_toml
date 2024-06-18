@@ -1,0 +1,9 @@
+[package]
+name = "auto-lib2"
+version = "0.1.0"
+autobins = false
+edition = "2021"
+
+[lib]
+path = "src/renamed.rs"
+edition = "2018"

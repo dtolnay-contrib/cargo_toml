@@ -1,0 +1,9 @@
+[package]
+name = "auto-lib3"
+autobins = false
+edition = "2021"
+
+[lib]
+name = "renamed_lib"
+
+[workspace]

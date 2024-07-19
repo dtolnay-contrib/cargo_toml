@@ -1,5 +1,5 @@
 [package]
-version = "0.20.3"
+version = "0.20.4"
 edition = "2021"
 name = "cargo_toml"
 authors = ["Kornel <kornel@geekhood.net>"]
@@ -22,8 +22,8 @@ path = "src/cargo_toml.rs"
 features = []
 
 [dependencies]
-serde = { version = "1.0.199", features = ["derive"] }
-toml = "0.8.11"
+serde = { version = "1.0.203", features = ["derive"] }
+toml = "0.8.14"
 
 [badges]
 maintenance = { status = "actively-developed" }

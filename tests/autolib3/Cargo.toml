@@ -2,6 +2,7 @@
 name = "auto-lib3"
 autobins = false
 edition = "2021"
+build = false
 
 [lib]
 name = "renamed_lib"

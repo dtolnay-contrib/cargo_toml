@@ -6,3 +6,12 @@ edition = "2021"
 
 [dependencies]
 "foo" = { git = 'https://github.com/example/foo', artifact = "bin" }
+
+[features]
+# Current configuration will continue to work
+foo = []
+# New configurations
+bar = { enables = ["foo"], doc = "simple docstring here"}
+baz = { enables = ["foo"], public = false}
+qux = { enables = [], deprecated = true }
+quux = { enables = ["dep:foo"], deprecated = { since = "1.2.3", note = "don't use this!" } }

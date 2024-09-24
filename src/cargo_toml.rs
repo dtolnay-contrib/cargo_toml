@@ -92,7 +92,7 @@ pub struct Manifest<Metadata = Value> {
     ///
     /// This crate has an optional [`features`] module for dealing with this
     /// complexity and getting the real list of features.
-    #[serde(default, skip_serializing_if = "FeatureSet::is_empty")]
+    #[serde(default, skip_serializing_if = "FeatureSet::is_empty", deserialize_with = "feature_set")]
     pub features: FeatureSet,
 
     /// Obsolete
@@ -2011,4 +2011,37 @@ pub struct Lints {
     /// Lint groups
     #[serde(flatten)]
     pub groups: LintGroups,
+}
+
+#[derive(Deserialize)]
+#[non_exhaustive]
+struct Rfc3416FeatureDetail {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub enables: Vec<String>,
+
+    #[allow(unused)]
+    /// `public` indicates whether or not the feature should be visible in documentation, and defaults to true
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub public: bool,
+
+    #[allow(unused)]
+    /// Add a description to the feature
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub doc: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Rfc3416Feature {
+    Simple(Vec<String>),
+    Detailed(Rfc3416FeatureDetail),
+
+}
+
+fn feature_set<'de, D>(deserializer: D) -> Result<FeatureSet, D::Error> where D: Deserializer<'de> {
+    let detailed = BTreeMap::<String, Rfc3416Feature>::deserialize(deserializer)?;
+    Ok(detailed.into_iter().map(|(k, v)| (k, match v {
+        Rfc3416Feature::Simple(f) => f,
+        Rfc3416Feature::Detailed(d) => d.enables,
+    })).collect())
 }

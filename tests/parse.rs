@@ -272,6 +272,12 @@ fn unstable() {
 
     assert_eq!("0.0.0", m.package().version());
     assert_eq!(false, m.package().publish());
+
+    assert!(m.features["foo"].is_empty());
+    assert_eq!(m.features["bar"].as_slice(), &["foo"]);
+    assert_eq!(m.features["baz"].as_slice(), &["foo"]);
+    assert!(m.features["qux"].is_empty());
+    assert_eq!(m.features["quux"], &["dep:foo"]);
 }
 
 #[test]

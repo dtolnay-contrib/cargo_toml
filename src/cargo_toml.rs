@@ -1946,6 +1946,17 @@ pub enum Edition {
     E2024 = 2024,
 }
 
+impl std::fmt::Display for Edition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Edition::E2015 => write!(f, "2015"),
+            Edition::E2018 => write!(f, "2018"),
+            Edition::E2021 => write!(f, "2021"),
+            Edition::E2024 => write!(f, "2024")
+        }
+    }
+}
+
 impl Edition {
     /// Returns minor version (1.x) of the oldest rustc that supports this edition
     #[must_use]

@@ -10,6 +10,18 @@ To get started, see [`Manifest::from_slice`][docs]. If you need to get informati
 
 [docs]: https://docs.rs/cargo_toml/latest/cargo_toml/struct.Manifest.html#method.from_slice
 
+## Features
+
+ * Allows parsing `Cargo.toml` independently of Cargo. It can read manifests that use nightly features, without requiring a nightly Cargo version. Unlike `cargo metadata`, this is a standalone self-contained implementation, and it doesn't run any external commands.
+
+ * It is safe to use with untrusted code. It is just a parser. It won't run any build commands nor apply any `.cargo/config.toml` files.
+
+ * It supports Cargo workspaces and inheritance of fields.
+
+ * It supports abstracting the file system, so parsing of `Cargo.toml` can auto-detect files [parsed from `.crate` tarballs](https://lib.rs/crates/crate_untar), bare git repositories, and other data sources, without having to extract the files to disk first.
+
+ * It has optional helper functions for interpreting the `[features]` section.
+
 ## There will be updates
 
 Cargo regularly adds new features to `Cargo.toml`. Keep this crate up-to-date to correctly parse them all — **use [dependabot][db] or [renovate][ren]**.

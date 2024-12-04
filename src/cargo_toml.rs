@@ -603,7 +603,7 @@ impl<Metadata> Manifest<Metadata> {
         // Remove partially overrided items
         out.retain(|product| product.path.is_some());
 
-        if let Some(ref package) = self.package {
+        if let Some(package) = &self.package {
             if let Ok(bins) = fs.file_names_in(dir) {
                 for name in bins {
                     let rel_path = format!("{dir}/{name}");
@@ -1068,8 +1068,8 @@ impl Dependency {
     #[inline]
     #[must_use]
     pub fn detail(&self) -> Option<&DependencyDetail> {
-        match *self {
-            Dependency::Detailed(ref d) => Some(d),
+        match self {
+            Dependency::Detailed(d) => Some(d),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
         }
     }
@@ -1117,9 +1117,9 @@ impl Dependency {
     #[inline]
     #[track_caller]
     pub fn try_req(&self) -> Result<&str, Error> {
-        match *self {
-            Dependency::Simple(ref v) => Ok(v),
-            Dependency::Detailed(ref d) => Ok(d.version.as_deref().unwrap_or("*")),
+        match self {
+            Dependency::Simple(v) => Ok(v),
+            Dependency::Detailed(d) => Ok(d.version.as_deref().unwrap_or("*")),
             Dependency::Inherited(_) =>  Err(Error::InheritedUnknownValue),
         }
     }
@@ -1128,10 +1128,10 @@ impl Dependency {
     #[inline]
     #[must_use]
     pub fn req_features(&self) -> &[String] {
-        match *self {
+        match self {
             Dependency::Simple(_) => &[],
-            Dependency::Detailed(ref d) => &d.features,
-            Dependency::Inherited(ref d) => &d.features,
+            Dependency::Detailed(d) => &d.features,
+            Dependency::Inherited(d) => &d.features,
         }
     }
 
@@ -1140,10 +1140,10 @@ impl Dependency {
     #[inline]
     #[must_use]
     pub fn optional(&self) -> bool {
-        match *self {
+        match self {
             Dependency::Simple(_) => false,
-            Dependency::Detailed(ref d) => d.optional,
-            Dependency::Inherited(ref d) => d.optional,
+            Dependency::Detailed(d) => d.optional,
+            Dependency::Inherited(d) => d.optional,
         }
     }
 
@@ -1152,8 +1152,8 @@ impl Dependency {
     #[inline]
     #[must_use]
     pub fn package(&self) -> Option<&str> {
-        match *self {
-            Dependency::Detailed(ref d) => d.package.as_deref(),
+        match self {
+            Dependency::Detailed(d) => d.package.as_deref(),
             Dependency::Simple(_) | Dependency::Inherited(_) => None,
         }
     }
@@ -1177,9 +1177,9 @@ impl Dependency {
     #[track_caller]
     #[must_use]
     pub fn is_crates_io(&self) -> bool {
-        match *self {
+        match self {
             Dependency::Simple(_) => true,
-            Dependency::Detailed(ref d) => {
+            Dependency::Detailed(d) => {
                 // TODO: allow registry to be set to crates.io explicitly?
                 d.path.is_none() &&
                     d.registry.is_none() &&
@@ -1765,9 +1765,9 @@ impl Default for Publish {
 impl PartialEq<Publish> for bool {
     #[inline]
     fn eq(&self, p: &Publish) -> bool {
-        match *p {
-            Publish::Flag(flag) => flag == *self,
-            Publish::Registry(ref reg) => reg.is_empty() != *self,
+        match p {
+            Publish::Flag(flag) => *flag == *self,
+            Publish::Registry(reg) => reg.is_empty() != *self,
         }
     }
 }

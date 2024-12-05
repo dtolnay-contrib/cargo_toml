@@ -1967,7 +1967,7 @@ impl Edition {
             Edition::E2015 => 1,
             Edition::E2018 => 31,
             Edition::E2021 => 56,
-            Edition::E2024 => unreachable!("2024 edition is not yet released"),
+            Edition::E2024 => 85,
         }
     }
 }
@@ -1980,6 +1980,8 @@ pub enum Resolver {
     V1 = 1,
     #[serde(rename = "2")]
     V2 = 2,
+    #[serde(rename = "3")]
+    V3 = 3,
 }
 
 impl Display for Resolver {
@@ -1987,6 +1989,7 @@ impl Display for Resolver {
         f.write_str(match self {
             Resolver::V1 => "1",
             Resolver::V2 => "2",
+            Resolver::V3 => "3",
         })
     }
 }

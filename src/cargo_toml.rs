@@ -250,10 +250,6 @@ fn default_true() -> bool {
     true
 }
 
-fn is_default<T: Default + Copy + PartialEq>(val: &T) -> bool {
-    *val == T::default()
-}
-
 fn is_true(val: &bool) -> bool {
     *val
 }
@@ -495,7 +491,7 @@ impl<Metadata> Manifest<Metadata> {
         };
 
         let has_path = self.lib.as_ref().is_some_and(|l| l.path.is_some());
-        if !has_path && src.contains("lib.rs") {
+        if !has_path && (package.autolibs || self.lib.is_some()) && src.contains("lib.rs") {
             self.lib
                 .get_or_insert_with(Product::default)
                 .path = Some("src/lib.rs".to_string());
@@ -619,7 +615,7 @@ impl<Metadata> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.to_string()),
                                     path: Some(rel_path),
-                                    edition: *package.edition.get()?,
+                                    edition: Some(*package.edition.get()?),
                                     ..Product::default()
                                 }
                             };
@@ -636,7 +632,7 @@ impl<Metadata> Manifest<Metadata> {
                                 Product {
                                     name: Some(name.into()),
                                     path: Some(rel_path),
-                                    edition: *package.edition.get()?,
+                                    edition: Some(*package.edition.get()?),
                                     ..Product::default()
                                 }
                             };
@@ -1027,7 +1023,7 @@ impl Default for Product {
             proc_macro: false,
             required_features: Vec::new(),
             crate_type: Vec::new(),
-            edition: Edition::default(),
+            edition: None,
         }
     }
 }
@@ -1404,6 +1400,11 @@ pub struct Package<Metadata = Value> {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub autobins: bool,
 
+    /// Discover libraries from the file system
+    ///
+    #[serde(default = "default_true", skip_serializing_if = "is_true")]
+    pub autolibs: bool,
+
     /// Discover examples from the file system
     ///
     /// This may be incorrectly set to `true` if the crate uses 2015 edition and has explicit `[[example]]` sections
@@ -1460,6 +1461,7 @@ impl<Metadata> Package<Metadata> {
             license_file: None,
             repository: None,
             default_run: None,
+            autolibs: true,
             autobins: true,
             autoexamples: true,
             autotests: true,

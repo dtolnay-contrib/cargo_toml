@@ -99,7 +99,7 @@ fn autolib2() {
     assert!(!package.autobins);
     let lib = m.lib.unwrap();
     assert_eq!("auto_lib2", lib.name.unwrap());
-    assert_eq!(cargo_toml::Edition::E2018, lib.edition);
+    assert_eq!(cargo_toml::Edition::E2018, lib.edition.unwrap());
     assert_eq!(lib.crate_type, vec!["lib".to_string()]);
     assert_eq!(0, m.bin.len());
 }
@@ -115,7 +115,7 @@ fn autolib3() {
     assert!(matches!(m.package().build.as_ref().unwrap(), cargo_toml::OptionalFile::Flag(false)));
     let lib = m.lib.unwrap();
     assert_eq!("renamed_lib", lib.name.unwrap());
-    assert_eq!(cargo_toml::Edition::E2021, lib.edition);
+    assert_eq!(cargo_toml::Edition::E2021, lib.edition.unwrap());
     assert_eq!(lib.crate_type, vec!["lib".to_string()]);
     assert_eq!(0, m.bin.len());
 }

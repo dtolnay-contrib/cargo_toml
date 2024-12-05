@@ -498,9 +498,8 @@ impl<Metadata> Manifest<Metadata> {
         }
         if let Some(lib) = &mut self.lib {
             lib.name.get_or_insert_with(|| package.name.replace('-', "_"));
-            // FIXME: this field should have been an `Option`
-            if is_default(&lib.edition) {
-                lib.edition = *package.edition.get()?;
+            if lib.edition.is_none() {
+                lib.edition = Some(*package.edition.get()?);
             }
             if lib.crate_type.is_empty() {
                 lib.crate_type.push("lib".to_string());
@@ -524,7 +523,7 @@ impl<Metadata> Manifest<Metadata> {
                     Product {
                         name: Some(name.clone()),
                         path: Some(rel_path),
-                        edition: *package.edition.get()?,
+                        edition: Some(*package.edition.get()?),
                         ..Product::default()
                     }
                 };
@@ -993,9 +992,8 @@ pub struct Product {
     /// 2018 edition or only compiling one unit test with the 2015 edition. By default
     /// all products are compiled with the edition specified in `[package]`.
     ///
-    /// FIXME: this field should have been an `Option`. It will deserialize as 2015 if unset.
-    #[serde(default, skip_serializing_if = "is_default")]
-    pub edition: Edition,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edition: Option<Edition>,
 
     /// The available options are "dylib", "rlib", "staticlib", "cdylib", and "proc-macro".
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

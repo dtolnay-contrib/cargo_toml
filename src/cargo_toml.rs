@@ -1425,7 +1425,7 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Inheritable::is_default")]
     pub publish: Inheritable<Publish>,
 
-    /// "2" is the only useful value
+    /// The feature resolver version.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub resolver: Option<Resolver>,
 
@@ -1970,14 +1970,19 @@ impl Edition {
     }
 }
 
-/// `resolver = "2"` setting. Needed in [`Workspace`], but implied by [`Edition`] in packages.
+/// The feature resolver version.
+///
+/// Needed in [`Workspace`], but implied by [`Edition`] in packages.
 #[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 pub enum Resolver {
     #[serde(rename = "1")]
     #[default]
+    /// The default for editions prior to 2021.
     V1 = 1,
+    /// The default for the 2021 edition.
     #[serde(rename = "2")]
     V2 = 2,
+    /// The default for the 2024 edition.
     #[serde(rename = "3")]
     V3 = 3,
 }

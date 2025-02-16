@@ -6,7 +6,9 @@ This is a definition of fields in `Cargo.toml` files for [serde](https://serde.r
 
 This crate is more than just schema definition. It supports post-processing of the data to emulate Cargo's workspace inheritance and `autobins` features. It supports files on disk as well as other non-disk data sources.
 
-To get started, see [`Manifest::from_slice`][docs]. If you need to get information about Cargo projects local to devs' machines, also consider [cargo_metadata](lib.rs/crates/cargo_metadata).
+To get started, see [`Manifest::from_slice`][docs].
+
+If you need to get information about Cargo projects local to devs' machines, consider using [cargo_metadata](https://lib.rs/crates/cargo_metadata) instead. Running `cargo metadata` gives more complete information, and comes from the authoritative source.
 
 [docs]: https://docs.rs/cargo_toml/latest/cargo_toml/struct.Manifest.html#method.from_slice
 

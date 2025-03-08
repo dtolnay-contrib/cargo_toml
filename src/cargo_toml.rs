@@ -388,7 +388,7 @@ impl<Metadata> Manifest<Metadata> {
     ///
     /// It is `false` in manifests that use workspace inheritance, but had their data completed from the root manifest already.
     pub fn needs_workspace_inheritance(&self) -> bool {
-        self.package.as_ref().map_or(false, Package::needs_workspace_inheritance) ||
+        self.package.as_ref().is_some_and(Package::needs_workspace_inheritance) ||
         self.dependencies.values()
             .chain(self.build_dependencies.values())
             .chain(self.dev_dependencies.values())

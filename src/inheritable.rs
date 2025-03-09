@@ -1,15 +1,44 @@
 use crate::Error;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 /// Placeholder for a property that may be missing from its package, and needs to be copied from a `Workspace`.
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, try_from = "InheritableSerdeParser<T>")]
 pub enum Inheritable<T> {
+    Set(T),
+    #[serde(serialize_with = "workspace_true")]
+    Inherited,
+}
+
+impl<T> TryFrom<InheritableSerdeParser<T>> for Inheritable<T> {
+    type Error = String;
+    fn try_from(parsed: InheritableSerdeParser<T>) -> Result<Self, String> {
+        match parsed {
+            InheritableSerdeParser::Set(v) => Ok(Self::Set(v)),
+            InheritableSerdeParser::Inherited { workspace: true } => Ok(Self::Inherited),
+            InheritableSerdeParser::Inherited { workspace: false } => Err("inherited field with `workspace = false` is not allowed".into()),
+            InheritableSerdeParser::ParseErrorFallback(s) => Err(format!("Error parsing field content. Expected to deserialize {}, found {s}", std::any::type_name::<T>())),
+        }
+    }
+}
+
+fn workspace_true<S: Serializer>(serializer: S) -> Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Inherited {
+        workspace: bool,
+    }
+    Inherited { workspace: true }.serialize(serializer)
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub enum InheritableSerdeParser<T> {
     Set(T),
     Inherited {
         /// Always `true` (this is for serde)
         workspace: bool,
     },
+    ParseErrorFallback(toml::Value),
 }
 
 impl<T: PartialEq> PartialEq for Inheritable<T> {
@@ -25,7 +54,7 @@ impl<T> Inheritable<T> {
     pub fn as_ref(&self) -> Inheritable<&T> {
         match self {
             Self::Set(t) => Inheritable::Set(t),
-            Self::Inherited { .. } => Inheritable::Inherited { workspace: true },
+            Self::Inherited => Inheritable::Inherited,
         }
     }
 
@@ -37,7 +66,7 @@ impl<T> Inheritable<T> {
     pub fn get(&self) -> Result<&T, Error> {
         match self {
             Self::Set(t) => Ok(t),
-            Self::Inherited { .. } => Err(Error::InheritedUnknownValue),
+            Self::Inherited => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -48,7 +77,7 @@ impl<T> Inheritable<T> {
     pub fn as_mut(&mut self) -> Inheritable<&mut T> {
         match self {
             Self::Set(t) => Inheritable::Set(t),
-            Self::Inherited { .. } => Inheritable::Inherited { workspace: true },
+            Self::Inherited => Inheritable::Inherited,
         }
     }
 
@@ -56,7 +85,7 @@ impl<T> Inheritable<T> {
     pub fn get_mut(&mut self) -> Result<&mut T, Error> {
         match self {
             Self::Set(t) => Ok(t),
-            Self::Inherited { .. } => Err(Error::InheritedUnknownValue),
+            Self::Inherited => Err(Error::InheritedUnknownValue),
         }
     }
 
@@ -65,13 +94,13 @@ impl<T> Inheritable<T> {
     pub fn unwrap(self) -> T {
         match self {
             Self::Set(t) => t,
-            Self::Inherited { .. } => panic!("inherited workspace value"),
+            Self::Inherited => panic!("inherited workspace value"),
         }
     }
 
     /// Copy from workspace if needed
     pub fn inherit(&mut self, other: &T) where T: Clone {
-        if let Self::Inherited{..} = self {
+        if let Self::Inherited = self {
             *self = Self::Set(other.clone());
         }
     }
@@ -88,7 +117,7 @@ impl<T> Inheritable<Vec<T>> {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         match self {
-            Self::Inherited { .. } => false,
+            Self::Inherited => false,
             Self::Set(v) => v.is_empty(),
         }
     }
@@ -98,7 +127,7 @@ impl<T: Default + PartialEq> Inheritable<T> {
     /// False if inherited and unknown
     pub fn is_default(&self) -> bool {
         match self {
-            Self::Inherited { .. } => false,
+            Self::Inherited => false,
             Self::Set(v) => T::default() == *v,
         }
     }
@@ -109,7 +138,7 @@ impl<T> From<Option<T>> for Inheritable<T> {
     fn from(val: Option<T>) -> Self {
         match val {
             Some(val) => Self::Set(val),
-            None => Self::Inherited { workspace: true },
+            None => Self::Inherited,
         }
     }
 }
@@ -118,8 +147,25 @@ impl<T> From<Inheritable<T>> for Option<T> {
     /// `None` if inherited
     fn from(val: Inheritable<T>) -> Self {
         match val {
-            Inheritable::Inherited { .. } => None,
+            Inheritable::Inherited => None,
             Inheritable::Set(val) => Some(val),
         }
     }
+}
+
+#[test]
+fn serializes() {
+    #[derive(Serialize)]
+    struct Foo {
+        bar: Inheritable<&'static str>,
+    }
+    let s = toml::to_string(&Foo {
+        bar: Inheritable::Inherited,
+    }).unwrap();
+    assert_eq!(s, "[bar]\nworkspace = true\n");
+
+    let s = toml::to_string(&Foo {
+        bar: Inheritable::Set("hello"),
+    }).unwrap();
+    assert_eq!(s, "bar = \"hello\"\n");
 }

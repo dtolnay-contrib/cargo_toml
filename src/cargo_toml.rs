@@ -491,7 +491,7 @@ impl<Metadata> Manifest<Metadata> {
         };
 
         let has_path = self.lib.as_ref().is_some_and(|l| l.path.is_some());
-        if !has_path && (package.autolibs || self.lib.is_some()) && src.contains("lib.rs") {
+        if !has_path && (package.autolib || self.lib.is_some()) && src.contains("lib.rs") {
             self.lib
                 .get_or_insert_with(Product::default)
                 .path = Some("src/lib.rs".to_string());
@@ -1406,7 +1406,7 @@ pub struct Package<Metadata = Value> {
     /// Discover libraries from the file system
     ///
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
-    pub autolibs: bool,
+    pub autolib: bool,
 
     /// Discover examples from the file system
     ///
@@ -1464,7 +1464,7 @@ impl<Metadata> Package<Metadata> {
             license_file: None,
             repository: None,
             default_run: None,
-            autolibs: true,
+            autolib: true,
             autobins: true,
             autoexamples: true,
             autotests: true,

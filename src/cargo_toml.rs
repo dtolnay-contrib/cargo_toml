@@ -368,21 +368,40 @@ impl<Metadata> Manifest<Metadata> {
     pub fn complete_from_abstract_filesystem<PackageMetadataTypeDoesNotMatterHere, Fs: AbstractFilesystem>(
         &mut self, fs: Fs, workspace_manifest_and_path: Option<(&Manifest<PackageMetadataTypeDoesNotMatterHere>, &Path)>,
     ) -> Result<(), Error> {
-        if let Some((ws, ws_path)) = workspace_manifest_and_path {
-            self._inherit_workspace(ws.workspace.as_ref(), ws_path)?;
+        let tmp;
+        let err_path;
+        let res = if let Some((ws, ws_path)) = workspace_manifest_and_path {
+            err_path = Some(ws_path);
+            self._inherit_workspace(ws.workspace.as_ref(), ws_path)
         } else if let Some(ws) = self.workspace.take() {
+            err_path = Some(Path::new(""));
             // Manifest may be both a workspace and a package
-            self._inherit_workspace(Some(&ws), Path::new(""))?;
+            let res = self._inherit_workspace(Some(&ws), Path::new(""));
             self.workspace = Some(ws);
+            res
         } else if self.needs_workspace_inheritance() {
-            let (ws_manifest, base_path) = match fs.parse_root_workspace(self.package.as_ref().and_then(|p| p.workspace.as_deref())) {
-                Ok(res) => res,
-                Err(e @ Error::Workspace(_)) => return Err(e),
-                Err(e) => return Err(Error::Workspace(e.into())),
-            };
-            self._inherit_workspace(ws_manifest.workspace.as_ref(), &base_path)?;
+            let ws_path_hint = self.package.as_ref().and_then(|p| p.workspace.as_deref());
+            match fs.parse_root_workspace(ws_path_hint) {
+                Ok((ws_manifest, base_path)) => {
+                    tmp = base_path;
+                    err_path = Some(&tmp);
+                    self._inherit_workspace(ws_manifest.workspace.as_ref(), &tmp)
+                }
+                Err(e) => {
+                    err_path = if let Some(p) = ws_path_hint { tmp = p.to_owned(); Some(&tmp) } else { None };
+                    Err(e)
+                },
+            }
+        } else {
+            err_path = None;
+            Ok(())
+        };
+
+        match res.and_then(|()| self.complete_from_abstract_filesystem_inner(&fs)) {
+            Ok(()) => Ok(()),
+            Err(e @ Error::Workspace(_)) => return Err(e),
+            Err(e) => return Err(Error::Workspace(Box::new((e.into(), err_path.map(PathBuf::from))))),
         }
-        self.complete_from_abstract_filesystem_inner(&fs)
     }
 
     /// If `true`, some fields are unavailable. If `false`, it's fully usable as-is.

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::error::Error as StdErr;
 use std::{fmt, io};
 
@@ -10,7 +11,7 @@ pub enum Error {
     /// Filesystem access errors
     Io(io::Error),
     /// Manifest uses workspace inheritance, and the workspace failed to load
-    Workspace(Box<Error>),
+    Workspace(Box<(Error, Option<PathBuf>)>),
     /// Manifest uses workspace inheritance, and the data hasn't been inherited yet
     InheritedUnknownValue,
     /// Manifest uses workspace inheritance, but the root workspace is missing data
@@ -24,7 +25,7 @@ impl StdErr for Error {
         match self {
             Error::Parse(err) => Some(err),
             Error::Io(err) => Some(err),
-            Error::Workspace(err) => Some(err),
+            Error::Workspace(err) => Some(&err.0),
             Error::Other(_) | Error::InheritedUnknownValue | Error::WorkspaceIntegrity(_) => None,
         }
     }
@@ -37,7 +38,14 @@ impl fmt::Display for Error {
             Error::Io(err) => err.fmt(f),
             Error::Other(msg) => f.write_str(msg),
             Error::WorkspaceIntegrity(s) => f.write_str(s),
-            Error::Workspace(_) => f.write_str("can't load root workspace"),
+            Error::Workspace(err_path) => {
+                f.write_str("can't load root workspace")?;
+                if let Some(path) = &err_path.1 {
+                    write!(f, " at {}", path.display())?
+                }
+                f.write_str(": ")?;
+                err_path.0.fmt(f)
+            }
             Error::InheritedUnknownValue => f.write_str("value from workspace hasn't been set"),
         }
     }

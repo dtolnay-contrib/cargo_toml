@@ -31,10 +31,15 @@ pub trait AbstractFilesystem {
     /// The path needs to be an absolute path, because it will be used as the base path for inherited readmes, and would be ambiguous otherwise.
     #[allow(deprecated)]
     fn parse_root_workspace(&self, rel_path_hint: Option<&Path>) -> Result<(Manifest<Value>, PathBuf), Error> {
-        let (data, path) = self.read_root_workspace(rel_path_hint).map_err(|e| Error::Workspace(Box::new(e.into())))?;
-        let manifest = Manifest::from_slice(&data).map_err(|e| Error::Workspace(Box::new(e)))?;
+        let (data, path) = self.read_root_workspace(rel_path_hint).map_err(|e| Error::Workspace(Box::new((e.into(), rel_path_hint.map(PathBuf::from)))))?;
+        let manifest = match Manifest::from_slice(&data) {
+            Ok(m) => m,
+            Err(e) => return Err(Error::Workspace(Box::new((e, Some(path))))),
+        };
         if manifest.workspace.is_none() {
-            return Err(Error::WorkspaceIntegrity(format!("Manifest at {} was expected to be a workspace.\nUse package.workspace to select a differnt path, or implement cargo_toml::AbstractFilesystem::parse_root_workspace", path.display())));
+            return Err(Error::Workspace(Box::new(
+                (Error::WorkspaceIntegrity("Not a Workspace.\nUse package.workspace to select a differnt path, or implement cargo_toml::AbstractFilesystem::parse_root_workspace".into()), Some(path))
+            )));
         }
         Ok((manifest, path))
     }
@@ -85,8 +90,10 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
             Some(path) => {
                 let ws = self.path.join(path);
                 let toml_path = ws.join("Cargo.toml");
-                let data = std::fs::read(&toml_path)
-                    .map_err(|e| Error::Workspace(Box::new(Error::Io(e))))?;
+                let data = match std::fs::read(&toml_path) {
+                    Ok(d) => d,
+                    Err(e) => return Err(Error::Workspace(Box::new((Error::Io(e), Some(toml_path))))),
+                };
                 Ok((parse_workspace(&data, &toml_path)?, ws))
             },
             None => {

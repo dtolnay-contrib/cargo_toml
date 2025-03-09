@@ -987,11 +987,12 @@ pub struct Product {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub harness: bool,
 
+    /// Deprecated. Edition should be set only per package.
+    ///
     /// If set then a product can be configured to use a different edition than the
     /// `[package]` is configured to use, perhaps only compiling a library with the
     /// 2018 edition or only compiling one unit test with the 2015 edition. By default
     /// all products are compiled with the edition specified in `[package]`.
-    ///
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub edition: Option<Edition>,
 
@@ -1196,7 +1197,15 @@ pub struct DependencyDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 
+    /// If `Some`, use this as the crate name instead of `[dependencies]`'s table key.
+    ///
+    /// By using this, a crate can have multiple versions of the same dependency.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+
     /// Fetch this dependency from a custom 3rd party registry (alias defined in Cargo config), not crates-io.
+    ///
+    /// This depends on local cargo configuration. It becomes `registry_index` after the crate is uploaded to a registry.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub registry: Option<String>,
 
@@ -1213,6 +1222,7 @@ pub struct DependencyDetail {
 
     /// If true, the dependency has been defined at the workspace level, so the `path` is joined with workspace's base path.
     ///
+    /// This is a field added by this crate, does not exist in TOML.
     /// Note that `Dependency::Simple` won't have this flag, even if it was inherited.
     #[serde(skip)]
     pub inherited: bool,
@@ -1230,7 +1240,9 @@ pub struct DependencyDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rev: Option<String>,
 
-    /// Enable these features of the dependency. `default` is handled in a special way.
+    /// Enable these features of the dependency.
+    ///
+    /// Note that Cargo interprets `default` in a special way.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub features: Vec<String>,
 
@@ -1244,12 +1256,6 @@ pub struct DependencyDetail {
     /// Enable the `default` set of features of the dependency (enabled by default).
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     pub default_features: bool,
-
-    /// Use this crate name instead of table key.
-    ///
-    /// By using this, a crate can have multiple versions of the same dependency.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub package: Option<String>,
 
     /// Contains the remaining unstable keys and values for the dependency.
     #[serde(flatten)]
@@ -1305,16 +1311,16 @@ pub struct Package<Metadata = Value> {
     /// Careful: some names are uppercase, case-sensitive. `-` changes to `_` when used as a Rust identifier.
     pub name: String,
 
+    /// See [the `version()` getter for more info](`Package::version()`).
+    ///
     /// Must parse as semver, e.g. "1.9.0"
     ///
     /// This field may have unknown value when using workspace inheritance,
     /// and when the `Manifest` has been loaded without its workspace.
-    ///
-    /// See [the getter for more info](`Package::version()`).
     #[serde(default = "default_version")]
     pub version: Inheritable<String>,
 
-    /// Package's edition opt-in.
+    /// Package's edition opt-in. Use [`Package::edition()`] to read it.
     #[serde(default)]
     pub edition: Inheritable<Edition>,
 
@@ -1330,11 +1336,10 @@ pub struct Package<Metadata = Value> {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<PathBuf>,
 
-    #[serde(default)]
     /// e.g. `["Author <e@mail>", "etc"]`
     ///
     /// Deprecated.
-    #[serde(skip_serializing_if = "Inheritable::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::<Vec<_>>::is_empty")]
     pub authors: Inheritable<Vec<String>>,
 
     /// It doesn't link to anything
@@ -1360,20 +1365,20 @@ pub struct Package<Metadata = Value> {
     pub readme: Inheritable<OptionalFile>,
 
     /// Up to 5, for search
-    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::<Vec<_>>::is_empty")]
     pub keywords: Inheritable<Vec<String>>,
 
     /// This is a list of up to five categories where this crate would fit.
     /// e.g. `["command-line-utilities", "development-tools::cargo-plugins"]`
-    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::<Vec<_>>::is_empty")]
     pub categories: Inheritable<Vec<String>>,
 
     /// Don't publish these files
-    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::<Vec<_>>::is_empty")]
     pub exclude: Inheritable<Vec<String>>,
 
     /// Publish these files
-    #[serde(default, skip_serializing_if = "Inheritable::is_empty")]
+    #[serde(default, skip_serializing_if = "Inheritable::<Vec<_>>::is_empty")]
     pub include: Inheritable<Vec<String>>,
 
     /// e.g. "MIT"
@@ -1481,6 +1486,8 @@ impl<Metadata> Package<Metadata> {
     /// are missing data, and therefore can't be returned, and will panic.
     ///
     /// You can access these properties directly, they are an [`Inheritable`] enum.
+    ///
+    /// The version will default to `0.0.0` if the `version` field was absent in the manifest.
     #[track_caller]
     #[inline]
     pub fn version(&self) -> &str {
@@ -1699,7 +1706,7 @@ impl<Metadata: Default> Default for Package<Metadata> {
 
 /// A way specify or disable README or `build.rs`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, expecting = "the value should be either a boolean or a file path")]
 pub enum OptionalFile {
     /// Opt-in to default, or explicit opt-out
     Flag(bool),
@@ -1745,7 +1752,7 @@ impl OptionalFile {
 
 /// Forbids or selects custom registry
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, expecting = "the value should be either a boolean, or an array of registry names")]
 pub enum Publish {
     Flag(bool),
     Registry(Vec<String>),
@@ -1930,6 +1937,7 @@ pub enum MaintenanceStatus {
 /// Edition setting, which opts in to new Rust/Cargo behaviors.
 #[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
 #[non_exhaustive]
+#[serde(expecting = "if there's a newer edition, then this parser (cargo_toml crate) has to be updated")]
 pub enum Edition {
     /// 2015
     #[serde(rename = "2015")]
@@ -1948,12 +1956,12 @@ pub enum Edition {
 
 impl std::fmt::Display for Edition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Edition::E2015 => write!(f, "2015"),
-            Edition::E2018 => write!(f, "2018"),
-            Edition::E2021 => write!(f, "2021"),
-            Edition::E2024 => write!(f, "2024")
-        }
+        f.write_str(match self {
+            Edition::E2015 => "2015",
+            Edition::E2018 => "2018",
+            Edition::E2021 => "2021",
+            Edition::E2024 => "2024",
+        })
     }
 }
 
@@ -1974,6 +1982,7 @@ impl Edition {
 ///
 /// Needed in [`Workspace`], but implied by [`Edition`] in packages.
 #[derive(Debug, Default, PartialEq, Eq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize)]
+#[serde(expecting = "if there's a newer resolver, then this parser (cargo_toml crate) has to be updated")]
 pub enum Resolver {
     #[serde(rename = "1")]
     #[default]

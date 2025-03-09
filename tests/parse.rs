@@ -138,7 +138,7 @@ fn autoworkspace() {
 fn proc_macro() {
     let manifest = br#"[package]
     name = "foo"
-    version = "1"
+    version = "1.0.0"
     [lib]
     proc-macro = true
     "#;

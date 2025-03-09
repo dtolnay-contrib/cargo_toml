@@ -10,6 +10,8 @@ To get started, see [`Manifest::from_slice`][docs].
 
 If you need to get information about Cargo projects local to devs' machines, consider using [cargo_metadata](https://lib.rs/crates/cargo_metadata) instead. Running `cargo metadata` gives more complete information, and comes from the authoritative source.
 
+Editing of TOML through Serde is lossy (e.g. comments aren't preseved). If you want to modify `Cargo.toml` files, use [`toml_edit`](https://lib.rs/crates/toml_edit).
+
 [docs]: https://docs.rs/cargo_toml/latest/cargo_toml/struct.Manifest.html#method.from_slice
 
 ## Features

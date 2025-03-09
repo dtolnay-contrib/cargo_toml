@@ -180,6 +180,7 @@ pub struct Workspace<Metadata = Value> {
 /// Workspace can predefine properties that can be inherited via `{ workspace = true }` in its member packages.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
+#[non_exhaustive]
 pub struct PackageTemplate {
     /// Deprecated
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -395,16 +396,6 @@ impl<Metadata> Manifest<Metadata> {
             .any(|dep| {
                 matches!(dep, Dependency::Inherited(_))
             })
-    }
-
-    /// Copy workspace-inheritable properties from the `workspace_manifest`.
-    ///
-    /// `workspace_base_path` should be an absolute path to a directory where the workspace manifest is located.
-    /// Used as a base for `readme` and `license-file`.
-    #[deprecated(note = "this functionality has been merged into `complete_from_path_and_workspace` or `complete_from_abstract_filesystem`")]
-    #[doc(hidden)]
-    pub fn inherit_workspace<Ignored>(&mut self, workspace_manifest: &Manifest<Ignored>, workspace_base_path: &Path) -> Result<(), Error> {
-        self._inherit_workspace(workspace_manifest.workspace.as_ref(), workspace_base_path)
     }
 
     fn _inherit_workspace<Ignored>(&mut self, workspace: Option<&Workspace<Ignored>>, workspace_base_path: &Path) -> Result<(), Error> {

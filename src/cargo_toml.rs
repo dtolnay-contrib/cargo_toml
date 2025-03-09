@@ -1328,7 +1328,7 @@ pub struct Package<Metadata = Value> {
 
     /// Workspace this package is a member of (`None` if it's implicit)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace: Option<String>,
+    pub workspace: Option<PathBuf>,
 
     #[serde(default)]
     /// e.g. `["Author <e@mail>", "etc"]`

@@ -20,7 +20,7 @@ pub trait AbstractFilesystem {
     /// The path needs to be an absolute path, because it will be used as the base path for inherited readmes, and would be ambiguous otherwise.
     #[deprecated(note = "implement parse_root_workspace instead")]
     #[doc(hidden)]
-    fn read_root_workspace(&self, _rel_path_hint: Option<&str>) -> io::Result<(Vec<u8>, PathBuf)> {
+    fn read_root_workspace(&self, _rel_path_hint: Option<&Path>) -> io::Result<(Vec<u8>, PathBuf)> {
         Err(io::Error::new(io::ErrorKind::Unsupported, "AbstractFilesystem::read_root_workspace unimplemented"))
     }
 
@@ -30,7 +30,7 @@ pub trait AbstractFilesystem {
     /// Read and parse the root workspace manifest TOML file and return the path it's been read from.
     /// The path needs to be an absolute path, because it will be used as the base path for inherited readmes, and would be ambiguous otherwise.
     #[allow(deprecated)]
-    fn parse_root_workspace(&self, rel_path_hint: Option<&str>) -> Result<(Manifest<Value>, PathBuf), Error> {
+    fn parse_root_workspace(&self, rel_path_hint: Option<&Path>) -> Result<(Manifest<Value>, PathBuf), Error> {
         let (data, path) = self.read_root_workspace(rel_path_hint).map_err(|e| Error::Workspace(Box::new(e.into())))?;
         let manifest = Manifest::from_slice(&data).map_err(|e| Error::Workspace(Box::new(e)))?;
         if manifest.workspace.is_none() {
@@ -49,11 +49,11 @@ where
     }
 
     #[allow(deprecated)]
-    fn read_root_workspace(&self, rel_path_hint: Option<&str>) -> io::Result<(Vec<u8>, PathBuf)> {
+    fn read_root_workspace(&self, rel_path_hint: Option<&Path>) -> io::Result<(Vec<u8>, PathBuf)> {
         <T as AbstractFilesystem>::read_root_workspace(*self, rel_path_hint)
     }
 
-    fn parse_root_workspace(&self, rel_path_hint: Option<&str>) -> Result<(Manifest<Value>, PathBuf), Error> {
+    fn parse_root_workspace(&self, rel_path_hint: Option<&Path>) -> Result<(Manifest<Value>, PathBuf), Error> {
         <T as AbstractFilesystem>::parse_root_workspace(*self, rel_path_hint)
     }
 }
@@ -80,7 +80,7 @@ impl<'a> AbstractFilesystem for Filesystem<'a> {
         .collect())
     }
 
-    fn parse_root_workspace(&self, path: Option<&str>) -> Result<(Manifest<Value>, PathBuf), Error> {
+    fn parse_root_workspace(&self, path: Option<&Path>) -> Result<(Manifest<Value>, PathBuf), Error> {
         match path {
             Some(path) => {
                 let ws = self.path.join(path);

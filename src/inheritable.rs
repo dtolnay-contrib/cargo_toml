@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::Error;
 use serde::{Deserialize, Serialize, Serializer};
 
@@ -113,6 +115,17 @@ impl<T: Default> Default for Inheritable<T> {
 }
 
 impl<T> Inheritable<Vec<T>> {
+    /// False if inherited and unknown
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        match self {
+            Self::Inherited => false,
+            Self::Set(v) => v.is_empty(),
+        }
+    }
+}
+
+impl<K, V> Inheritable<BTreeMap<K, V>> {
     /// False if inherited and unknown
     #[must_use]
     pub fn is_empty(&self) -> bool {

@@ -1,0 +1,13 @@
+[package]
+name = "lintstest2"
+workspace = "../ws"
+edition = "2024"
+
+[lib]
+path = "/dev/null"
+
+
+[lints.rust]
+unsafe = "allow"
+unknown-rule = { level = "forbid" }
+has_config = { level = "forbid", boom = true }

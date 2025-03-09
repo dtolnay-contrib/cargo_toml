@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = ["../ws_crate", "../ws_inherit"]
+
+[workspace.lints.rust]
+a_ws_lint = "allow"

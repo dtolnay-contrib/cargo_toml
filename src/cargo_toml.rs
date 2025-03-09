@@ -134,8 +134,8 @@ pub struct Manifest<Metadata = Value> {
     pub example: Vec<Product>,
 
     /// Lints
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lints: Option<Lints>,
+    #[serde(default, skip_serializing_if = "Inheritable::<LintGroups>::is_empty")]
+    pub lints: Inheritable<LintGroups>,
 }
 
 /// A manifest can contain both a package and workspace-wide properties
@@ -173,8 +173,8 @@ pub struct Workspace<Metadata = Value> {
     pub dependencies: DepsSet,
 
     /// Workspace-level lint groups
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lints: Option<LintGroups>,
+    #[serde(default, skip_serializing_if = "LintGroups::is_empty")]
+    pub lints: LintGroups,
 }
 
 /// Workspace can predefine properties that can be inherited via `{ workspace = true }` in its member packages.
@@ -409,6 +409,7 @@ impl<Metadata> Manifest<Metadata> {
     /// It is `false` in manifests that use workspace inheritance, but had their data completed from the root manifest already.
     pub fn needs_workspace_inheritance(&self) -> bool {
         self.package.as_ref().is_some_and(Package::needs_workspace_inheritance) ||
+        !self.lints.is_set() ||
         self.dependencies.values()
             .chain(self.build_dependencies.values())
             .chain(self.dev_dependencies.values())
@@ -432,6 +433,10 @@ impl<Metadata> Manifest<Metadata> {
             inherit_dependencies(&mut target.dependencies, workspace, workspace_base_path)?;
             inherit_dependencies(&mut target.build_dependencies, workspace, workspace_base_path)?;
             inherit_dependencies(&mut target.dev_dependencies, workspace, workspace_base_path)?;
+        }
+
+        if let Some(ws) = workspace {
+            self.lints.inherit(&ws.lints);
         }
 
         let package = match &mut self.package {
@@ -670,6 +675,11 @@ impl<Metadata> Manifest<Metadata> {
     #[inline]
     pub fn package(&self) -> &Package<Metadata> {
         self.package.as_ref().expect("not a package")
+    }
+
+    /// Panics if the field is not available (inherited from a workspace that hasn't been loaded)
+    pub fn lints(&self) -> &LintGroups {
+        self.lints.as_ref().unwrap()
     }
 }
 
@@ -2017,15 +2027,53 @@ impl Display for Resolver {
 }
 
 /// Lint definition.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Lint {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(from = "LintSerdeParser", into = "LintSerdeParser")]
+pub struct Lint {
+    /// allow/warn/deny
+    pub level: LintLevel,
+
+    /// Controls which lints or lint groups override other lint groups.
+    pub priority: i8,
+
+    /// Unstable
+    pub config: BTreeMap<String, toml::Value>,
+}
+
+/// Internal
+#[derive(Serialize, Deserialize)]
+#[serde(untagged, expecting = "lints' values should be a string or { level = \"…\", priority = 1 }")]
+enum LintSerdeParser {
     Simple(LintLevel),
     Detailed {
         level: LintLevel,
         /// Controls which lints or lint groups override other lint groups.
-        priority: Option<i32>,
+        #[serde(default)]
+        priority: i8,
+
+        /// Unstable
+        #[serde(default, flatten)]
+        config: BTreeMap<String, toml::Value>,
     },
+}
+
+impl From<LintSerdeParser> for Lint {
+    fn from(parsed: LintSerdeParser) -> Self {
+        match parsed {
+            LintSerdeParser::Simple(level) => Self { level, priority: 0, config: Default::default() },
+            LintSerdeParser::Detailed { level, priority, config } => Self { level, priority, config },
+        }
+    }
+}
+
+impl From<Lint> for LintSerdeParser {
+    fn from(orig: Lint) -> Self {
+        if orig.priority == 0 && orig.config.is_empty() {
+            Self::Simple(orig.level)
+        } else {
+            Self::Detailed { level: orig.level, priority: orig.priority, config: orig.config }
+        }
+    }
 }
 
 /// Lint level.
@@ -2034,21 +2082,9 @@ pub enum Lint {
 pub enum LintLevel {
     Allow,
     Warn,
+    ForceWarn,
     Deny,
     Forbid,
-}
-
-/// `[lints]` section.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct Lints {
-    /// Inherit lint rules from the workspace.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub workspace: bool,
-
-    /// Lint groups
-    #[serde(flatten)]
-    pub groups: LintGroups,
 }
 
 #[derive(Deserialize)]

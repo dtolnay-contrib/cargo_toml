@@ -1,0 +1,9 @@
+[package]
+name = "lintstest1"
+workspace = "../ws"
+
+[lib]
+path = "/dev/null"
+
+[lints]
+workspace = true

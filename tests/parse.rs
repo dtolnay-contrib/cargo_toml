@@ -1,4 +1,4 @@
-use cargo_toml::{Lint, LintLevel, Manifest, StripSetting};
+use cargo_toml::{Edition, LintLevel, Manifest, StripSetting};
 use std::fs::read;
 use std::path::Path;
 
@@ -289,24 +289,26 @@ fn edition() {
 }
 
 #[test]
-fn lints() {
-    let m = Manifest::from_slice(&read("tests/lints/Cargo.toml").unwrap()).unwrap();
+fn lints_explicit() {
+    let m = Manifest::from_path("tests/lints/ws_crate/Cargo.toml").unwrap();
+    assert_eq!(m.package().edition(), Edition::E2024);
 
-    let lints = m.workspace.unwrap().lints.unwrap();
-    let lint_group = lints.get("rust").unwrap();
-    assert_eq!(lint_group.get("unsafe"), Some(&Lint::Simple(LintLevel::Forbid)));
-    assert_eq!(lint_group.get("unknown-rule"), Some(&Lint::Detailed{
-        level: LintLevel::Allow,
-        priority: Some(-1)
-    }));
+    assert!(m.lints.is_set());
+    let lint_group = m.lints().get("rust").unwrap();
+    assert_eq!(lint_group.get("unsafe").unwrap().level, LintLevel::Allow);
+    assert_eq!(lint_group.get("unknown-rule").unwrap().level, LintLevel::Forbid);
+    assert_eq!(lint_group.get("unknown-rule").unwrap().priority, 0);
+}
 
+#[test]
+fn lints_ws() {
+    let m = Manifest::from_path("tests/lints/ws_inherit/Cargo.toml").unwrap();
+    assert_eq!(m.package().edition(), Edition::E2015);
 
-    let lints = m.lints.unwrap();
-    assert!(lints.workspace);
-    let lint_group = lints.groups.get("rust").unwrap();
-    assert_eq!(lint_group.get("unsafe"), Some(&Lint::Simple(LintLevel::Allow)));
-    assert_eq!(lint_group.get("unknown-rule"), Some(&Lint::Detailed{
-        level: LintLevel::Forbid,
-        priority: None
-    }));
+    let lint_group = &m.lints.as_ref().unwrap()["rust"];
+    assert_eq!(lint_group["a_ws_lint"].level, LintLevel::Allow);
+
+    let ws = Manifest::from_path("tests/lints/ws/Cargo.toml").unwrap();
+    let ws_lints = &ws.workspace.as_ref().unwrap().lints["rust"];
+    assert!(ws_lints.contains_key("a_ws_lint"), "{ws_lints:?}");
 }
